@@ -30,8 +30,8 @@ const API_BASE = process.env.NEXT_PUBLIC_ECOBE_API_URL || '/api/ecobe'
 
 // Map dashboard routes to new API v1 endpoints
 const DASHBOARD_API_BASE = process.env.NEXT_PUBLIC_ECOBE_API_URL 
-  ? `${process.env.NEXT_PUBLIC_ECOBE_API_URL}/api/v1`
-  : '/api/ecobe/api/v1'
+  ? `${process.env.NEXT_PUBLIC_ECOBE_API_URL}/api/ecobe`
+  : '/api/ecobe'
 
 const api = axios.create({
   baseURL: API_BASE,
