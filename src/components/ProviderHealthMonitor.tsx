@@ -19,8 +19,8 @@ export function ProviderHealthMonitor() {
   })
 
   const disagreeRate =
-    metrics?.electricityMaps?.successRate != null
-      ? ((1 - metrics.electricityMaps.successRate) * 100).toFixed(1)
+    metrics?.watttime?.successRate != null
+      ? ((1 - metrics.watttime.successRate) * 100).toFixed(1)
       : null
 
   return (
@@ -38,13 +38,13 @@ export function ProviderHealthMonitor() {
 
       {isError && (
         <div className="space-y-3">
-          {/* Fallback: show Electricity Maps status from metrics */}
-          {metrics?.electricityMaps && (
+          {/* Fallback: show WattTime status from metrics */}
+          {metrics?.watttime && (
             <ProviderRow
-              name="Electricity Maps"
-              status={metrics.electricityMaps.successRate != null && metrics.electricityMaps.successRate > 0.8 ? 'healthy' : 'degraded'}
+              name="WattTime"
+              status={metrics.watttime.successRate != null && metrics.watttime.successRate > 0.8 ? 'healthy' : 'degraded'}
               latencyMs={metrics.p95LatencyDeltaMs}
-              lastSuccessAt={metrics.electricityMaps.lastSuccessAt}
+              lastSuccessAt={metrics.watttime.lastSuccessAt}
               disagreeRate={null}
             />
           )}
