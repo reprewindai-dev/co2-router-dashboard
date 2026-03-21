@@ -83,25 +83,25 @@ export function ProviderHealthMonitor() {
           <div className="flex justify-between text-xs mt-2">
             <span className="text-slate-400">Signal successes (24h)</span>
             <span className="text-emerald-400">
-              {metrics?.electricityMaps?.successCount ?? '—'}
+              {metrics?.watttime?.successCount ?? '—'}
             </span>
           </div>
           <div className="flex justify-between text-xs mt-2">
             <span className="text-slate-400">Signal failures (24h)</span>
             <span
               className={
-                (metrics?.electricityMaps?.failureCount ?? 0) > 0
+                (metrics?.watttime?.failureCount ?? 0) > 0
                   ? 'text-orange-400'
                   : 'text-slate-400'
               }
             >
-              {metrics?.electricityMaps?.failureCount ?? '—'}
+              {metrics?.watttime?.failureCount ?? '—'}
             </span>
           </div>
-          {metrics?.electricityMaps?.lastError && (
+          {metrics?.watttime?.lastError && (
             <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-xs text-red-400 font-mono truncate">
-                {metrics.electricityMaps.lastError}
+                {metrics.watttime.lastError}
               </p>
             </div>
           )}

@@ -37,8 +37,8 @@ export function DecisionEngineStatus() {
       : null
 
   const disagreeRate =
-    metrics?.electricityMaps?.successRate != null
-      ? ((1 - metrics.electricityMaps.successRate) * 100).toFixed(1)
+    metrics?.watttime?.successRate != null
+      ? ((1 - metrics.watttime.successRate) * 100).toFixed(1)
       : null
 
   const isOnline = !healthError && !metricsError

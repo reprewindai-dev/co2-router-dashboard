@@ -169,8 +169,8 @@ export interface DashboardMetrics {
   topChosenRegion: string | null
   p95LatencyDeltaMs: number | null
   dataFreshnessMaxSeconds: number | null
-  electricityMapsSuccessRate: number | null
-  electricityMaps: {
+  watttimeSuccessRate: number | null
+  watttime: {
     successRate: number | null
     successCount: number
     failureCount: number
