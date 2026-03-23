@@ -13,6 +13,7 @@ import type {
   OptimalWindow,
   DecisionReplayResult,
   MethodologyProviders,
+  MethodologyCard,
   PatternsResponse,
   OpportunityResult,
   BestWindowRequest,
@@ -237,6 +238,16 @@ export const ecobeApi = {
       return data
     } catch (error) {
       console.error('Failed to fetch provider health:', error)
+      throw error
+    }
+  },
+
+  async getMethodology(): Promise<MethodologyCard> {
+    try {
+      const { data } = await api.get('/methodology')
+      return data
+    } catch (error) {
+      console.error('Failed to fetch methodology:', error)
       throw error
     }
   },

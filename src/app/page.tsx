@@ -262,8 +262,8 @@ export default function LandingPage() {
             {/* Stats Bar */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-8 border-t border-gray-800">
               <div>
-                <div className="text-2xl font-bold text-emerald-400">4</div>
-                <div className="text-sm text-gray-500">Signal Providers</div>
+                <div className="text-2xl font-bold text-emerald-400">3</div>
+                <div className="text-sm text-gray-500">Signal Tiers</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-emerald-400">6</div>
@@ -427,7 +427,13 @@ export default function LandingPage() {
                         <div>
                           <div className="text-gray-500 text-xs mb-1">Quality Score</div>
                           <div className="text-xl font-bold text-gray-100">
-                            {decisionPayload.score != null ? Math.round(decisionPayload.score) : '--'}
+                            {decisionPayload.score != null
+                              ? Math.round(
+                                  decisionPayload.score <= 1
+                                    ? decisionPayload.score * 100
+                                    : decisionPayload.score
+                                )
+                              : '--'}
                             <span className="text-xs text-gray-500 ml-1">/100</span>
                           </div>
                         </div>
@@ -492,6 +498,22 @@ export default function LandingPage() {
                           )}
                           {decisionPayload.fallback_used && (
                             <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 text-xs font-semibold rounded">FALLBACK</span>
+                          )}
+                        </div>
+                      )}
+
+                      {(decisionPayload.doctrine || decisionPayload.legalDisclaimer) && (
+                        <div className="pt-4 border-t border-gray-700">
+                          {decisionPayload.doctrine && (
+                            <>
+                              <div className="text-gray-500 text-xs mb-1">Doctrine</div>
+                              <div className="text-sm text-gray-300">{decisionPayload.doctrine}</div>
+                            </>
+                          )}
+                          {decisionPayload.legalDisclaimer && (
+                            <div className="text-xs text-amber-300/80 mt-2">
+                              {decisionPayload.legalDisclaimer}
+                            </div>
                           )}
                         </div>
                       )}
@@ -579,37 +601,37 @@ export default function LandingPage() {
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-white mb-4">Signal Intelligence</h2>
-            <p className="text-gray-400 text-lg">Four providers, one truth</p>
+            <p className="text-gray-400 text-lg">Tiered signals, explicit provenance, auditable routing</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               {
-                name: 'WattTime',
-                signal: 'MOER',
-                description: 'Real-time marginal operating emissions rate. Primary routing signal.',
+                name: 'Tier 1',
+                signal: 'Operational Routing',
+                description: 'Live routing signals choose the best region now, with provenance on every decision.',
                 status: 'Live',
                 color: 'emerald',
               },
               {
-                name: 'Electricity Maps',
-                signal: 'Flow-traced Intensity',
-                description: 'Grid intelligence with electricity mix and cross-zone effects.',
+                name: 'Tier 1.5',
+                signal: 'Grid Backbone',
+                description: 'EIA-930 direct, GridStatus, and ISO telemetry harden decisions and fallback behavior.',
                 status: 'Live',
                 color: 'cyan',
               },
               {
-                name: 'Ember',
-                signal: 'Structural Profile',
-                description: 'Monthly/yearly carbon baseline and generation mix trends.',
+                name: 'Tier 2',
+                signal: 'Forecast Hygiene',
+                description: 'Freshness gates, native resolution, and structural validation bound forecast risk.',
                 status: 'Live',
                 color: 'amber',
               },
               {
-                name: 'EIA-930',
-                signal: 'Predictive Telemetry',
-                description: 'Balance, interchange, demand ramps, and curtailment probability.',
-                status: 'Live',
+                name: 'Doctrine',
+                signal: 'Lowest Defensible Signal',
+                description: 'Ecobe picks the freshest defensible signal, not just the greenest raw number.',
+                status: 'Audit',
                 color: 'blue',
               },
             ].map((provider, i) => {
@@ -638,6 +660,16 @@ export default function LandingPage() {
                 </div>
               )
             })}
+          </div>
+
+          <div className="mt-8 rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
+            <p className="text-xs uppercase tracking-[0.2em] text-amber-400">Operator Notice</p>
+            <p className="mt-3 text-sm leading-7 text-amber-100/80">
+              Ecobe recommends execution targets using best-available grid signals. Providers can
+              diverge or degrade, and final execution responsibility remains with the operator.
+              Each decision frame records source, timestamp, fallback, and disagreement metadata
+              for audit and replay.
+            </p>
           </div>
         </div>
       </section>
@@ -792,8 +824,8 @@ export default function LandingPage() {
                 <a href="#" className="hover:text-emerald-400 transition">
                   Documentation
                 </a>
-                <a href="#" className="hover:text-emerald-400 transition">
-                  API Reference
+                <a href="/methodology" className="hover:text-emerald-400 transition">
+                  Methodology
                 </a>
               </div>
             </div>
@@ -803,7 +835,7 @@ export default function LandingPage() {
                 <a href="#" className="hover:text-emerald-400 transition">
                   Status
                 </a>
-                <a href="#" className="hover:text-emerald-400 transition">
+                <a href="/methodology" className="hover:text-emerald-400 transition">
                   Methodology
                 </a>
                 <a href="#" className="hover:text-emerald-400 transition">
@@ -832,7 +864,7 @@ export default function LandingPage() {
               © 2026 ECOBE. Built for a carbon-neutral future.
             </p>
             <p className="text-gray-500 text-sm">
-              Powered by WattTime, Electricity Maps, Ember, EIA-930
+              Powered by WattTime, GridStatus, EIA-930, Ember
             </p>
           </div>
         </div>

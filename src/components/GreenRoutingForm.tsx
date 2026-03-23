@@ -27,18 +27,12 @@ import { formatDistanceToNow, isPast, parseISO } from 'date-fns'
 import { OpportunityInsight } from '@/components/OpportunityInsight'
 
 const REGIONS = [
-  'US-CAL-CISO',
-  'FR',
-  'DE',
-  'GB',
-  'SE',
-  'NO',
-  'BR',
-  'JP',
-  'AU-NSW',
-  'SG',
-  'US-MIDA-PJM',
-  'US-TEX-ERCO',
+  'us-east-1',
+  'us-west-2',
+  'eu-west-1',
+  'eu-central-1',
+  'ap-southeast-1',
+  'ap-northeast-1',
 ]
 
 function isPolicyDelay(r: GreenRoutingResult | PolicyDelayResponse): r is PolicyDelayResponse {
@@ -72,11 +66,11 @@ function useCountdown(isoTimestamp: string | undefined) {
 
 export function GreenRoutingForm() {
   const [formData, setFormData] = useState<GreenRoutingRequest>({
-    preferredRegions: ['US-CAL-CISO', 'FR', 'DE'],
+    preferredRegions: ['us-east-1', 'eu-west-1', 'eu-central-1'],
     maxCarbonGPerKwh: 400,
     carbonWeight: 0.5,
-    latencyWeight: 0.3,
-    costWeight: 0.2,
+    latencyWeight: 0.2,
+    costWeight: 0.3,
   })
 
   // Tracks any reroute outcome so the displayed region updates in-place
@@ -203,6 +197,10 @@ export function GreenRoutingForm() {
                   />
                 </div>
               ))}
+              <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-400">
+                The engine normalizes these weights per request and stores the effective mix with
+                the decision frame for replay and audit.
+              </div>
             </div>
 
             <button
@@ -354,6 +352,34 @@ export function GreenRoutingForm() {
                   </div>
                 </div>
 
+                {r.weights && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {Object.entries(r.weights).map(([key, value]) => (
+                      <div key={key} className="rounded-lg bg-slate-800/50 p-3">
+                        <p className="text-xs text-slate-400 mb-1 capitalize">{key} weight</p>
+                        <p className="text-base font-bold text-white">{(value * 100).toFixed(0)}%</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {r.confidenceBand && (
+                  <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-400">
+                      Confidence Band
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {r.confidenceBand.low} to {r.confidenceBand.high} gCO2/kWh around a midpoint of{' '}
+                      {r.confidenceBand.mid} gCO2/kWh.
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {r.confidenceBand.empirical
+                        ? 'Band widened by observed provider disagreement.'
+                        : 'Band derived from signal confidence and freshness heuristics.'}
+                    </p>
+                  </div>
+                )}
+
                 {/* Provider disagreement */}
                 {r.provider_disagreement?.flag && (
                   <div className="flex items-start gap-2 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg text-xs">
@@ -421,6 +447,22 @@ export function GreenRoutingForm() {
                   <div className="bg-slate-800/30 rounded-lg p-3 border-l-2 border-emerald-500/40">
                     <p className="text-xs text-slate-400 mb-1">Engine Explanation</p>
                     <p className="text-sm text-slate-200">{r.explanation}</p>
+                  </div>
+                )}
+
+                {(r.doctrine || r.legalDisclaimer) && (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                    {r.doctrine && (
+                      <>
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+                          Decision Doctrine
+                        </p>
+                        <p className="mt-2 text-sm text-slate-200">{r.doctrine}</p>
+                      </>
+                    )}
+                    {r.legalDisclaimer && (
+                      <p className="mt-2 text-xs leading-6 text-amber-100/75">{r.legalDisclaimer}</p>
+                    )}
                   </div>
                 )}
 

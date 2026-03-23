@@ -46,8 +46,15 @@ export interface GreenRoutingResult {
   carbonIntensity: number
   estimatedLatency?: number
   score: number
+  weights?: {
+    carbon: number
+    latency: number
+    cost: number
+  }
   qualityTier: QualityTier
   explanation: string
+  legalDisclaimer?: string
+  doctrine?: string
   carbon_delta_g_per_kwh: number
   forecast_stability: ForecastStability | null
   provider_disagreement: { flag: boolean; pct: number | null } | null
@@ -237,6 +244,7 @@ export interface ForecastPoint {
   forecastTime: string
   predictedIntensity: number
   confidence?: number
+  confidenceBand?: { low: number; mid: number; high: number; empirical: boolean }
 }
 
 export interface RegionForecast {
@@ -255,6 +263,7 @@ export interface OptimalWindow {
     avgIntensity: number
     minIntensity: number
     confidence: number
+    confidenceBand?: { low: number; mid: number; high: number; empirical: boolean }
   } | null
 }
 
@@ -321,6 +330,38 @@ export interface ProviderStatus {
 
 export interface MethodologyProviders {
   providers: ProviderStatus[]
+}
+
+export interface MethodologyTier {
+  id: string
+  name: string
+  purpose: string
+  providers: Array<{
+    name: string
+    role: string
+    coverage: string
+  }>
+}
+
+export interface MethodologyCard {
+  title: string
+  slug: string
+  lastUpdated: string
+  doctrine: {
+    name: string
+    summary: string
+    legalDisclaimer: string
+  }
+  scoring: {
+    formula: string
+    defaultWeights: {
+      carbon: number
+      latency: number
+      cost: number
+    }
+  }
+  tiers: MethodologyTier[]
+  markdown: string
 }
 
 // ─── DEKES ────────────────────────────────────────────────────────────────────
