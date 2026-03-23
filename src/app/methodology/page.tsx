@@ -71,6 +71,37 @@ export default function MethodologyPage() {
             </div>
           </section>
 
+          <section className="grid gap-4 lg:grid-cols-[1fr,1fr]">
+            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-400">Assurance Mode</p>
+              <h3 className="mt-2 text-2xl font-semibold text-white">Disclosure-Ready Routing</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{data.assuranceMode.summary}</p>
+              <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
+                <p>Disagreement threshold: {data.assuranceMode.disagreementThresholdPct}%</p>
+                <p className="mt-2 font-mono text-xs text-cyan-300">{data.assuranceMode.exportPath}</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Policy Modes</p>
+              <div className="mt-4 space-y-3">
+                {data.policyModes.map((policy) => (
+                  <div key={policy.id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-white">{policy.name}</p>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-emerald-400">
+                        {policy.assuranceMode ? 'Assurance' : 'Optimize'}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">{policy.summary}</p>
+                    <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      Preferred signals: {policy.preferredSignalTypes.join(', ')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
           <section className="grid gap-4 lg:grid-cols-3">
             {data.tiers.map((tier) => (
               <div key={tier.id} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
@@ -89,6 +120,32 @@ export default function MethodologyPage() {
                 </div>
               </div>
             ))}
+          </section>
+
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Standards Mapping</p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.18em] text-slate-500">
+                    <th className="px-3 py-3">Framework</th>
+                    <th className="px-3 py-3">Ecobe Field</th>
+                    <th className="px-3 py-3">Standard Field</th>
+                    <th className="px-3 py-3">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {data.standardsMapping.map((row) => (
+                    <tr key={`${row.framework}-${row.ecobeField}`}>
+                      <td className="px-3 py-3 text-white">{row.framework}</td>
+                      <td className="px-3 py-3 font-mono text-cyan-300">{row.ecobeField}</td>
+                      <td className="px-3 py-3">{row.standardField}</td>
+                      <td className="px-3 py-3 text-slate-400">{row.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">

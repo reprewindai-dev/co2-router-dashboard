@@ -13,15 +13,6 @@ const REGION_NAMES: Record<string, string> = {
   'ap-northeast-1': 'Asia Pacific (Tokyo)',
 }
 
-const FALLBACK_REGIONS = [
-  { id: 'us-east-1', name: 'US East (N. Virginia)', carbon: 245, demand: '67%', renewable: '45%' },
-  { id: 'us-west-2', name: 'US West (Oregon)', carbon: 124, demand: '51%', renewable: '78%' },
-  { id: 'eu-west-1', name: 'EU (Ireland)', carbon: 189, demand: '58%', renewable: '62%' },
-  { id: 'eu-central-1', name: 'EU (Frankfurt)', carbon: 156, demand: '54%', renewable: '68%' },
-  { id: 'ap-southeast-1', name: 'Asia Pacific (Singapore)', carbon: 312, demand: '82%', renewable: '12%' },
-  { id: 'ap-northeast-1', name: 'Asia Pacific (Tokyo)', carbon: 203, demand: '71%', renewable: '35%' },
-]
-
 interface RegionDisplay {
   id: string
   name: string
@@ -65,8 +56,8 @@ export default function LandingPage() {
   const [expandPayload, setExpandPayload] = useState(false)
   const demoTimer = useRef<NodeJS.Timeout>()
   const [isMounted, setIsMounted] = useState(false)
-  const [regions, setRegions] = useState<RegionDisplay[]>(FALLBACK_REGIONS)
-  const [isDemoMode, setIsDemoMode] = useState(false)
+  const [regions, setRegions] = useState<RegionDisplay[]>([])
+  const [engineUnavailable, setEngineUnavailable] = useState<string | null>(null)
   const [isRouting, setIsRouting] = useState(false)
 
   useEffect(() => {
@@ -95,13 +86,15 @@ export default function LandingPage() {
             renewable: r.renewableRatio != null ? `${Math.round(r.renewableRatio * 100)}%` : '--',
           }))
           setRegions(mapped)
-          setIsDemoMode(false)
+          setEngineUnavailable(null)
         } else {
-          setIsDemoMode(true)
+          setEngineUnavailable('Live signal summary returned no regions.')
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setIsDemoMode(true)
+          setEngineUnavailable(
+            error instanceof Error ? error.message : 'Live signal summary is unavailable.'
+          )
         }
       }
     }
@@ -141,44 +134,13 @@ export default function LandingPage() {
       setSelectedRegion((result as any).selectedRegion ?? regions[0]?.id)
       setShowDecision(true)
       setDecisionPayload(payload)
-      setIsDemoMode(false)
-    } catch {
-      // Fallback to demo payload when engine is unreachable
-      const cleanestRegion = regions.reduce((prev, current) =>
-        current.carbon < prev.carbon ? current : prev
+      setEngineUnavailable(null)
+    } catch (error) {
+      setShowDecision(false)
+      setDecisionPayload(null)
+      setEngineUnavailable(
+        error instanceof Error ? error.message : 'Live routing is unavailable.'
       )
-      const carbonSaved = Math.round(
-        (regions[0].carbon - cleanestRegion.carbon) *
-          (parseInt(scenarios[demoScenario].memory) / 100) *
-          2.5
-      )
-      const payload = {
-        timestamp: new Date().toISOString().split('T')[1].split('.')[0],
-        scenario: scenarios[demoScenario].workload,
-        selectedRegion: cleanestRegion.id,
-        carbonIntensity: cleanestRegion.carbon,
-        score: 94 + Math.random() * 6,
-        qualityTier: 'high',
-        carbon_delta_g_per_kwh: regions[0].carbon - cleanestRegion.carbon,
-        forecast_stability: 'stable',
-        provider_disagreement: { flag: false, pct: 0 },
-        balancingAuthority: 'MISO',
-        demandRampPct: 2.3,
-        carbonSpikeProbability: 0.08,
-        curtailmentProbability: 0.02,
-        importCarbonLeakageScore: 0.15,
-        source_used: 'WattTime',
-        validation_source: 'Electricity Maps',
-        fallback_used: false,
-        estimatedFlag: false,
-        syntheticFlag: false,
-        carbonSaved: `${carbonSaved}g CO2`,
-        deadline: scenarios[demoScenario].deadline,
-      }
-      setSelectedRegion(cleanestRegion.id)
-      setShowDecision(true)
-      setDecisionPayload(payload)
-      setIsDemoMode(true)
     } finally {
       setIsRouting(false)
     }
@@ -196,9 +158,9 @@ export default function LandingPage() {
               <span className="text-white font-bold text-xl">🌱</span>
             </div>
             <span className="text-lg font-bold text-white">ECOBE</span>
-            {isDemoMode && (
+            {engineUnavailable && (
               <span className="ml-3 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded border border-amber-500/40">
-                DEMO MODE
+                LIVE SIGNAL ISSUE
               </span>
             )}
           </div>
@@ -351,11 +313,17 @@ export default function LandingPage() {
 
               <button
                 onClick={handleRouteGreen}
-                disabled={isRouting}
+                disabled={isRouting || regions.length === 0}
                 className="w-full px-6 py-3 bg-emerald-500 text-gray-950 font-semibold rounded-lg hover:bg-emerald-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isRouting ? 'Routing...' : 'Route Green'}
               </button>
+
+              {engineUnavailable && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+                  {engineUnavailable}
+                </div>
+              )}
             </div>
 
             {/* Demo Output */}
@@ -388,11 +356,6 @@ export default function LandingPage() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center space-x-2">
                         <h3 className="text-lg font-semibold text-white">Decision</h3>
-                        {isDemoMode && (
-                          <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded border border-amber-500/40">
-                            DEMO
-                          </span>
-                        )}
                       </div>
                       <div className={`px-3 py-1 text-xs font-semibold rounded ${
                         (decisionPayload.qualityTier ?? 'high') === 'high'

@@ -12,6 +12,8 @@ import type {
   RegionForecast,
   OptimalWindow,
   DecisionReplayResult,
+  DisclosureBatchResponse,
+  DisclosureExportResponse,
   MethodologyProviders,
   MethodologyCard,
   PatternsResponse,
@@ -96,9 +98,12 @@ export interface GreenRoutingRequest {
   preferredRegions: string[]
   maxCarbonGPerKwh?: number
   latencyMsByRegion?: Record<string, number>
+  costIndexByRegion?: Record<string, number>
   carbonWeight?: number
   latencyWeight?: number
   costWeight?: number
+  mode?: 'optimize' | 'assurance'
+  policyMode?: 'default' | 'sec_disclosure_strict' | 'eu_24x7_ready'
   targetTime?: string
   durationMinutes?: number
 }
@@ -248,6 +253,36 @@ export const ecobeApi = {
       return data
     } catch (error) {
       console.error('Failed to fetch methodology:', error)
+      throw error
+    }
+  },
+
+  async getDisclosureExport(params?: {
+    from?: string
+    to?: string
+    mode?: 'assurance' | 'optimize' | 'all'
+    policyMode?: 'default' | 'sec_disclosure_strict' | 'eu_24x7_ready'
+  }): Promise<DisclosureExportResponse> {
+    try {
+      const { data } = await api.get('/disclosure/export', {
+        params: {
+          format: 'json',
+          ...params,
+        },
+      })
+      return data
+    } catch (error) {
+      console.error('Failed to fetch disclosure export:', error)
+      throw error
+    }
+  },
+
+  async getDisclosureBatches(limit = 20): Promise<DisclosureBatchResponse> {
+    try {
+      const { data } = await api.get('/disclosure/batches', { params: { limit } })
+      return data
+    } catch (error) {
+      console.error('Failed to fetch disclosure batches:', error)
       throw error
     }
   },

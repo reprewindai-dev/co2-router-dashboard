@@ -18,6 +18,13 @@ export interface CarbonIntensity {
 
 export type QualityTier = 'high' | 'medium' | 'low'
 export type ForecastStability = 'stable' | 'medium' | 'unstable'
+export type RoutingMode = 'optimize' | 'assurance'
+export type PolicyMode = 'default' | 'sec_disclosure_strict' | 'eu_24x7_ready'
+export type SignalType =
+  | 'average_operational'
+  | 'marginal_estimate'
+  | 'consumed_emissions'
+  | 'unknown'
 
 // ─── Routing ──────────────────────────────────────────────────────────────────
 
@@ -46,6 +53,15 @@ export interface GreenRoutingResult {
   carbonIntensity: number
   estimatedLatency?: number
   score: number
+  mode?: RoutingMode
+  policyMode?: PolicyMode
+  signalTypeUsed?: SignalType
+  assurance?: {
+    enabled: boolean
+    disagreementThresholdPct: number
+    confidenceLabel: 'high' | 'medium' | 'low'
+    conservativeAccounting: boolean
+  }
   weights?: {
     carbon: number
     latency: number
@@ -332,6 +348,54 @@ export interface MethodologyProviders {
   providers: ProviderStatus[]
 }
 
+export interface DisclosureRecord {
+  timestamp: string
+  workload_name: string | null
+  operation: string | null
+  decision_id: string
+  decision_frame_id: string | null
+  region: string
+  baseline_region: string
+  estimated_kwh: number | null
+  emissions_gco2: number | null
+  intensity_gco2_per_kwh: number | null
+  signal_type: SignalType
+  source: string | null
+  validation_source: string | null
+  mode: RoutingMode
+  policy_mode: PolicyMode
+  assurance_mode: boolean
+  quality_tier: string | null
+  confidence_label: string | null
+  fallback_used: boolean
+  disagreement_flag: boolean
+  disagreement_pct: number | null
+  reference_time: string | null
+  data_freshness_seconds: number | null
+  location_based_scope2_gco2: number | null
+  market_based_scope2_gco2: number | null
+}
+
+export interface DisclosureBatch {
+  batchId: string | null
+  generatedAt: string
+  metadata: Record<string, unknown>
+}
+
+export interface DisclosureExportResponse {
+  batch_id: string
+  hash: string
+  generated_at: string
+  record_count: number
+  standards_mapping: MethodologyCard['standardsMapping']
+  policy_modes: MethodologyCard['policyModes']
+  records: DisclosureRecord[]
+}
+
+export interface DisclosureBatchResponse {
+  batches: DisclosureBatch[]
+}
+
 export interface MethodologyTier {
   id: string
   name: string
@@ -360,6 +424,25 @@ export interface MethodologyCard {
       cost: number
     }
   }
+  assuranceMode: {
+    summary: string
+    disagreementThresholdPct: number
+    exportPath: string
+  }
+  policyModes: Array<{
+    id: 'default' | 'sec_disclosure_strict' | 'eu_24x7_ready'
+    name: string
+    summary: string
+    assuranceMode: boolean
+    conservativeDisagreement: boolean
+    preferredSignalTypes: Array<'average_operational' | 'marginal_estimate' | 'consumed_emissions' | 'unknown'>
+  }>
+  standardsMapping: Array<{
+    framework: string
+    ecobeField: string
+    standardField: string
+    note: string
+  }>
   tiers: MethodologyTier[]
   markdown: string
 }

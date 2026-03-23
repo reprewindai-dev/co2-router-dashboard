@@ -28,6 +28,7 @@ import { DekesImpactCard } from '@/components/DekesImpactCard'
 import { WorkloadImpactGraph } from '@/components/WorkloadImpactGraph'
 import { DekesHandoffPanel } from '@/components/DekesHandoffPanel'
 import { OrgRiskTable } from '@/components/OrgRiskTable'
+import { DisclosureExportPanel } from '@/components/DisclosureExportPanel'
 
 type Tab = 'console' | 'signals' | 'routing' | 'energy' | 'analytics' | 'dekes' | 'patterns' | 'integration'
 
@@ -133,6 +134,7 @@ export default function DashboardPage() {
             <DecisionConfidencePanel />
             <SystemHealth />
           </div>
+          <DisclosureExportPanel />
           <IntegrationSourcesPanel />
           <WorkloadImpactGraph />
         </div>
