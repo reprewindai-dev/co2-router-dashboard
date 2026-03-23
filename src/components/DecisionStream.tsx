@@ -187,7 +187,7 @@ export function DecisionStream() {
 
       {isError && (
         <div className="py-6 text-center">
-          <p className="text-sm text-slate-500">Connect ECOBE Engine to stream decisions</p>
+          <p className="text-sm text-slate-500">Connect CO₂ Router engine to stream decisions</p>
         </div>
       )}
 

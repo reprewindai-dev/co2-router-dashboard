@@ -195,7 +195,7 @@ export default function LandingPage() {
             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
               <span className="text-white font-bold text-xl">🌱</span>
             </div>
-            <span className="text-lg font-bold text-white">ECOBE</span>
+            <span className="text-lg font-bold text-white">CO₂ Router</span>
             {isDemoMode && (
               <span className="ml-3 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded border border-amber-500/40">
                 DEMO MODE
@@ -238,8 +238,8 @@ export default function LandingPage() {
               <span className="block text-emerald-400">Automatically.</span>
             </h1>
             <p className="text-xl text-gray-400 mb-8 leading-relaxed">
-              ECOBE is the world's most accurate carbon-aware routing engine. Cut your cloud
-              carbon footprint by 40–70% with zero code changes.
+              CO₂ Router uses real-time grid signals to route your cloud workloads to the cleanest
+              available region. Measurable carbon reduction, zero code changes.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
@@ -755,7 +755,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-6 text-center">
           <h2 className="text-4xl font-bold text-white mb-6">Start Routing Carbon, Not Emissions</h2>
           <p className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
-            Join companies cutting their cloud carbon footprint by 40–70% without code changes.
+            Route your cloud workloads to the cleanest grid regions — with real-time carbon data and zero code changes.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button className="px-8 py-3 bg-emerald-500 text-gray-950 font-semibold rounded-lg hover:bg-emerald-400 transition">
@@ -777,7 +777,7 @@ export default function LandingPage() {
                 <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
                   <span className="text-white font-bold text-lg">🌱</span>
                 </div>
-                <span className="text-lg font-bold text-white">ECOBE</span>
+                <span className="text-lg font-bold text-white">CO₂ Router</span>
               </div>
               <p className="text-gray-500 text-sm">
                 Carbon-aware compute routing engine built for a sustainable future.
@@ -829,7 +829,7 @@ export default function LandingPage() {
 
           <div className="border-t border-gray-800 pt-8 flex items-center justify-between">
             <p className="text-gray-500 text-sm">
-              © 2026 ECOBE. Built for a carbon-neutral future.
+              © 2026 CO₂ Router. Built for a carbon-neutral future.
             </p>
             <p className="text-gray-500 text-sm">
               Powered by WattTime, Electricity Maps, Ember, EIA-930
