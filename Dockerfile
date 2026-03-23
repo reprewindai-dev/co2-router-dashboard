@@ -10,18 +10,12 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# ECOBE_API_URL: Server-side rewrite URL (used by next.config.js rewrites)
-# Provide at build time for deployment. Default to localhost for development.
-# ECOBE engine URL — used by next.config.js rewrites at build time
-# Railway env var overrides this default
+# ECOBE_API_URL: server-side rewrite URL used by next.config.js rewrites.
 ARG ECOBE_API_URL="https://ecobe-engineclaude-production.up.railway.app"
 ENV ECOBE_API_URL=${ECOBE_API_URL}
-# Client-side API URL — uses server-side rewrite proxy (relative path)
+# NEXT_PUBLIC_ECOBE_API_URL: client-side relative proxy path.
 ARG NEXT_PUBLIC_ECOBE_API_URL="/api/ecobe"
 ENV NEXT_PUBLIC_ECOBE_API_URL=${NEXT_PUBLIC_ECOBE_API_URL}
-# Resend email key
-ARG RESEND_API_KEY=""
-ENV RESEND_API_KEY=${RESEND_API_KEY}
 RUN npm run build
 
 FROM base AS runner
@@ -31,17 +25,14 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 
-# Standalone output includes server + minimal node_modules
+# Standalone output includes server + minimal node_modules.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
 RUN chown -R nextjs:nodejs /app
 USER nextjs
 
-# Railway sets PORT dynamically; Next.js standalone reads it
-EXPOSE ${PORT:-3000}
-
+EXPOSE 3000
 ENV HOSTNAME="0.0.0.0"
-ENV PORT=${PORT:-3000}
 
 CMD ["node", "server.js"]
