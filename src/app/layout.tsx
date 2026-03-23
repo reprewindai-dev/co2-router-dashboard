@@ -30,10 +30,10 @@ export default function RootLayout({
                     <p className="text-xs text-slate-400">Carbon-Aware Compute Operations</p>
                   </div>
                   <nav className="flex items-center space-x-4">
-                    <Link href="/console" className="text-sm text-slate-300 hover:text-white transition">
+                    <Link href="/console" className="text-sm text-slate-300 transition hover:text-white">
                       Console
                     </Link>
-                    <Link href="/methodology" className="text-sm text-slate-500 hover:text-slate-300 transition">
+                    <Link href="/methodology" className="text-sm text-slate-500 transition hover:text-slate-300">
                       Methodology
                     </Link>
                   </nav>
@@ -43,10 +43,10 @@ export default function RootLayout({
 
             <main className="container mx-auto px-6 py-8">{children}</main>
 
-            <footer className="border-t border-slate-800 bg-slate-900/50 mt-16">
+            <footer className="mt-16 border-t border-slate-800 bg-slate-900/50">
               <div className="container mx-auto px-6 py-8">
                 <div className="flex items-center justify-between text-sm text-slate-400">
-                  <p>© 2026 CO2 Router. Carbon-aware compute for a sustainable future.</p>
+                  <p>(c) 2026 CO2 Router. Carbon-aware compute for a sustainable future.</p>
                   <p>Signal layer: WattTime · EIA-930 · GridStatus · Ember</p>
                 </div>
               </div>

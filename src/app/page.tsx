@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ecobeApi, type GreenRoutingRequest } from '@/lib/api'
 
@@ -52,9 +52,8 @@ export default function LandingPage() {
   const [demoScenario, setDemoScenario] = useState(0)
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null)
   const [showDecision, setShowDecision] = useState(false)
-  const [decisionPayload, setDecisionPayload] = useState<any>(null)
+  const [decisionPayload, setDecisionPayload] = useState<Record<string, any> | null>(null)
   const [expandPayload, setExpandPayload] = useState(false)
-  const demoTimer = useRef<NodeJS.Timeout>()
   const [isMounted, setIsMounted] = useState(false)
   const [regions, setRegions] = useState<RegionDisplay[]>([])
   const [engineUnavailable, setEngineUnavailable] = useState<string | null>(null)
@@ -157,7 +156,7 @@ export default function LandingPage() {
             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
               <span className="text-white font-bold text-xl">🌱</span>
             </div>
-            <span className="text-lg font-bold text-white">ECOBE</span>
+            <span className="text-lg font-bold text-white">CO2 Router</span>
             {engineUnavailable && (
               <span className="ml-3 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded border border-amber-500/40">
                 LIVE SIGNAL ISSUE
@@ -261,13 +260,15 @@ export default function LandingPage() {
                 <h3 className="text-lg font-semibold text-white mb-4">Workload</h3>
                 <div className="space-y-2">
                   {scenarios.map((s, i) => (
-                    <div
+                    <button
                       key={i}
+                      type="button"
                       onClick={() => {
                         setDemoScenario(i)
                         setSelectedRegion(null)
                         setShowDecision(false)
                       }}
+                      aria-pressed={demoScenario === i}
                       className={`p-3 rounded-lg border cursor-pointer transition ${
                         demoScenario === i
                           ? 'border-emerald-500 bg-emerald-500/10'
@@ -279,7 +280,7 @@ export default function LandingPage() {
                         {s.memory} • {s.compute}
                       </div>
                       <div className="text-xs text-emerald-400 mt-1">{s.description}</div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -288,9 +289,11 @@ export default function LandingPage() {
                 <h3 className="text-lg font-semibold text-white mb-4">Regions</h3>
                 <div className="space-y-2">
                   {regions.map((region) => (
-                    <div
+                    <button
                       key={region.id}
+                      type="button"
                       onClick={() => setSelectedRegion(region.id)}
+                      aria-pressed={selectedRegion === region.id}
                       className={`p-3 rounded-lg border cursor-pointer transition ${
                         selectedRegion === region.id
                           ? 'border-emerald-500 bg-emerald-500/10'
@@ -306,7 +309,7 @@ export default function LandingPage() {
                       <div className="text-xs text-gray-500 mt-1">
                         {region.renewable} renewable • {region.demand} demand
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
