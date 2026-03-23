@@ -168,7 +168,7 @@ export default function LandingPage() {
         curtailmentProbability: 0.02,
         importCarbonLeakageScore: 0.15,
         source_used: 'WattTime',
-        validation_source: 'WattTime',
+        validation_source: 'Electricity Maps',
         fallback_used: false,
         estimatedFlag: false,
         syntheticFlag: false,
@@ -592,9 +592,9 @@ export default function LandingPage() {
                 color: 'emerald',
               },
               {
-                name: 'EIA-930',
-                signal: 'Backbone Data',
-                description: 'Grid balance, interchange, demand ramps, and curtailment probability.',
+                name: 'Electricity Maps',
+                signal: 'Flow-traced Intensity',
+                description: 'Grid intelligence with electricity mix and cross-zone effects.',
                 status: 'Live',
                 color: 'cyan',
               },
@@ -832,7 +832,7 @@ export default function LandingPage() {
               © 2026 ECOBE. Built for a carbon-neutral future.
             </p>
             <p className="text-gray-500 text-sm">
-              Powered by WattTime, EIA-930, Ember, regional grid sources
+              Powered by WattTime, Electricity Maps, Ember, EIA-930
             </p>
           </div>
         </div>

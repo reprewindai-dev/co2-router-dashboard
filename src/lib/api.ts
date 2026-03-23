@@ -28,26 +28,15 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_ECOBE_API_URL || '/api/ecobe'
 
-// Map dashboard routes to new API v1 endpoints
-const DASHBOARD_API_BASE = process.env.NEXT_PUBLIC_ECOBE_API_URL 
-  ? `${process.env.NEXT_PUBLIC_ECOBE_API_URL}/api/ecobe`
-  : '/api/ecobe'
-
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30_000, // 30 s — prevents hung requests from blocking the UI
 })
 
-// Create a separate API client for dashboard routes
-const dashboardApi = axios.create({
-  baseURL: DASHBOARD_API_BASE,
-  headers: { 'Content-Type': 'application/json' },
-  timeout: 30_000,
-})
-
-// Apply same error interceptors to dashboard API
-dashboardApi.interceptors.response.use(
+// Normalize API errors into human-readable messages.
+// Extracts error.message / error.detail from ECOBE response body when available.
+api.interceptors.response.use(
   (res) => res,
   (err: unknown) => {
     if (axios.isAxiosError(err)) {
@@ -162,7 +151,7 @@ export const ecobeApi = {
   // ── Dashboard ────────────────────────────────────────────────────────────────
   async getDashboardMetrics(window: '24h' | '7d' = '24h'): Promise<DashboardMetrics> {
     try {
-      const { data } = await dashboardApi.get('/dashboard/metrics', { params: { window } })
+      const { data } = await api.get('/dashboard/metrics', { params: { window } })
       return data
     } catch (error) {
       console.error('Failed to fetch dashboard metrics:', error)
@@ -172,7 +161,7 @@ export const ecobeApi = {
 
   async getDashboardSavings(window: '24h' | '7d' | '30d' = '24h'): Promise<DashboardSavings> {
     try {
-      const { data } = await dashboardApi.get('/dashboard/savings', { params: { window } })
+      const { data } = await api.get('/dashboard/savings', { params: { window } })
       return data
     } catch (error) {
       console.error('Failed to fetch dashboard savings:', error)
@@ -182,7 +171,7 @@ export const ecobeApi = {
 
   async getDecisions(limit = 100): Promise<{ decisions: DashboardDecision[] }> {
     try {
-      const { data } = await dashboardApi.get('/dashboard/decisions', { params: { limit } })
+      const { data } = await api.get('/dashboard/decisions', { params: { limit } })
       return data
     } catch (error) {
       console.error('Failed to fetch decisions:', error)
@@ -192,7 +181,7 @@ export const ecobeApi = {
 
   async getRegionMapping(): Promise<{ mappings: RegionMapping[] }> {
     try {
-      const { data } = await dashboardApi.get('/dashboard/region-mapping')
+      const { data } = await api.get('/dashboard/region-mapping')
       return data
     } catch (error) {
       console.error('Failed to fetch region mapping:', error)
@@ -204,7 +193,7 @@ export const ecobeApi = {
     zones: string[]
   ): Promise<{ intensities: Array<{ zone: string; carbonIntensity: number }> }> {
     try {
-      const { data } = await dashboardApi.post('/dashboard/what-if/intensities', { zones })
+      const { data } = await api.post('/dashboard/what-if/intensities', { zones })
       return data
     } catch (error) {
       console.error('Failed to fetch what-if intensities:', error)
@@ -215,7 +204,7 @@ export const ecobeApi = {
   // ── Forecasting ──────────────────────────────────────────────────────────────
   async getRegionForecast(region: string, hoursAhead = 72): Promise<RegionForecast> {
     try {
-      const { data } = await dashboardApi.get(`/forecasting/${region}/forecasts`, {
+      const { data } = await api.get(`/forecasting/${region}/forecasts`, {
         params: { hoursAhead },
       })
       return data
@@ -231,7 +220,7 @@ export const ecobeApi = {
     lookAheadHours = 48
   ): Promise<OptimalWindow> {
     try {
-      const { data } = await dashboardApi.get(`/forecasting/${region}/optimal-window`, {
+      const { data } = await api.get(`/forecasting/${region}/optimal-window`, {
         params: { durationHours, lookAheadHours },
       })
       return data
@@ -244,7 +233,7 @@ export const ecobeApi = {
   // ── Provider Health ───────────────────────────────────────────────────────────
   async getProviderHealth(): Promise<MethodologyProviders> {
     try {
-      const { data } = await dashboardApi.get('/methodology/providers')
+      const { data } = await api.get('/methodology/providers')
       return data
     } catch (error) {
       console.error('Failed to fetch provider health:', error)
@@ -392,6 +381,68 @@ export const ecobeApi = {
   async health() {
     const { data } = await api.get('/health')
     return data
+  },
+
+  // ── CI/CD Routing ─────────────────────────────────────────────────────────────
+  async getCIRoutingHealth() {
+    try {
+      const { data } = await api.get('/ci/health')
+      return data
+    } catch (error) {
+      console.error('Failed to fetch CI routing health:', error)
+      throw error
+    }
+  },
+
+  async getCIAvailableRegions() {
+    try {
+      const { data } = await api.get('/ci/regions')
+      return data
+    } catch (error) {
+      console.error('Failed to fetch CI regions:', error)
+      throw error
+    }
+  },
+
+  async getCIDecisions(limit = 50) {
+    try {
+      const { data } = await api.get('/ci/decisions', { params: { limit } })
+      return data
+    } catch (error) {
+      console.error('Failed to fetch CI decisions:', error)
+      throw error
+    }
+  },
+
+  // ── Database Health ─────────────────────────────────────────────────────────────
+  async getDatabaseHealth() {
+    try {
+      const { data } = await api.get('/database/health')
+      return data
+    } catch (error) {
+      console.error('Failed to fetch database health:', error)
+      throw error
+    }
+  },
+
+  async testDatabaseConnection() {
+    try {
+      const { data } = await api.post('/database/test')
+      return data
+    } catch (error) {
+      console.error('Failed to test database connection:', error)
+      throw error
+    }
+  },
+
+  async getDatabasePoolStatus() {
+    try {
+      const { data } = await api.get('/database/pool-status')
+      return data
+    } catch (error) {
+      console.error('Failed to fetch database pool status:', error)
+      throw error
+    }
   },
 }
 

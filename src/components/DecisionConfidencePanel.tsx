@@ -59,7 +59,7 @@ export function DecisionConfidencePanel() {
   ]
 
   // Provider events from metrics
-  const providerErrors = metrics?.watttime?.failureCount ?? 0
+  const providerErrors = metrics?.electricityMaps?.failureCount ?? 0
   const fallbackRate = metrics ? (metrics.fallbackRate * 100).toFixed(1) : null
   const greenRate = metrics ? (metrics.greenRouteRate * 100).toFixed(1) : null
 

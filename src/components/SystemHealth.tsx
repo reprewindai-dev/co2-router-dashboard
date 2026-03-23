@@ -23,8 +23,8 @@ export function SystemHealth() {
       : null
 
   const cacheHit =
-    metrics?.watttime?.successRate != null
-      ? (metrics.watttime.successRate * 100).toFixed(1)
+    metrics?.electricityMaps?.successRate != null
+      ? (metrics.electricityMaps.successRate * 100).toFixed(1)
       : null
 
   const p95Latency = metrics?.p95LatencyDeltaMs ?? null
@@ -58,7 +58,7 @@ export function SystemHealth() {
           icon={<Database className="w-4 h-4 text-teal-400" />}
           label="Signal success rate"
           value={cacheHit != null ? `${cacheHit}%` : '—'}
-          sub="WattTime"
+          sub="Electricity Maps"
           color="text-teal-400"
         />
         <MetricCard
@@ -106,12 +106,12 @@ export function SystemHealth() {
             <span className="text-slate-400">Provider errors (24h)</span>
             <span
               className={
-                (metrics?.watttime?.failureCount ?? 0) > 0
+                (metrics.electricityMaps?.failureCount ?? 0) > 0
                   ? 'text-orange-400'
                   : 'text-slate-500'
               }
             >
-              {metrics?.watttime?.failureCount ?? 0}
+              {metrics.electricityMaps?.failureCount ?? 0}
             </span>
           </div>
         </div>

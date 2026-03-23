@@ -19,8 +19,8 @@ export function ProviderHealthMonitor() {
   })
 
   const disagreeRate =
-    metrics?.watttime?.successRate != null
-      ? ((1 - metrics.watttime.successRate) * 100).toFixed(1)
+    metrics?.electricityMaps?.successRate != null
+      ? ((1 - metrics.electricityMaps.successRate) * 100).toFixed(1)
       : null
 
   return (
@@ -38,13 +38,13 @@ export function ProviderHealthMonitor() {
 
       {isError && (
         <div className="space-y-3">
-          {/* Fallback: show WattTime status from metrics */}
-          {metrics?.watttime && (
+          {/* Fallback: show Electricity Maps status from metrics */}
+          {metrics?.electricityMaps && (
             <ProviderRow
-              name="WattTime"
-              status={metrics.watttime.successRate != null && metrics.watttime.successRate > 0.8 ? 'healthy' : 'degraded'}
+              name="Electricity Maps"
+              status={metrics.electricityMaps.successRate != null && metrics.electricityMaps.successRate > 0.8 ? 'healthy' : 'degraded'}
               latencyMs={metrics.p95LatencyDeltaMs}
-              lastSuccessAt={metrics.watttime.lastSuccessAt}
+              lastSuccessAt={metrics.electricityMaps.lastSuccessAt}
               disagreeRate={null}
             />
           )}
@@ -83,25 +83,25 @@ export function ProviderHealthMonitor() {
           <div className="flex justify-between text-xs mt-2">
             <span className="text-slate-400">Signal successes (24h)</span>
             <span className="text-emerald-400">
-              {metrics?.watttime?.successCount ?? '—'}
+              {metrics?.electricityMaps?.successCount ?? '—'}
             </span>
           </div>
           <div className="flex justify-between text-xs mt-2">
             <span className="text-slate-400">Signal failures (24h)</span>
             <span
               className={
-                (metrics?.watttime?.failureCount ?? 0) > 0
+                (metrics?.electricityMaps?.failureCount ?? 0) > 0
                   ? 'text-orange-400'
                   : 'text-slate-400'
               }
             >
-              {metrics?.watttime?.failureCount ?? '—'}
+              {metrics?.electricityMaps?.failureCount ?? '—'}
             </span>
           </div>
-          {metrics?.watttime?.lastError && (
+          {metrics?.electricityMaps?.lastError && (
             <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
               <p className="text-xs text-red-400 font-mono truncate">
-                {metrics.watttime.lastError}
+                {metrics.electricityMaps.lastError}
               </p>
             </div>
           )}
