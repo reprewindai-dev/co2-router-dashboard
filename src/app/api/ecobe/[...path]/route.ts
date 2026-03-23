@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { NextResponse } from 'next/server'
 
 const DEFAULT_ENGINE_URL = 'https://ecobe-engineclaude-production.up.railway.app'
@@ -45,16 +46,26 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
     headers['x-api-key'] = internalKey
   }
 
-  const res = await fetch(targetUrl, {
-    method: request.method,
+  const upstream = await axios.request<ArrayBuffer>({
+    url: targetUrl.toString(),
+    method: request.method as
+      | 'GET'
+      | 'POST'
+      | 'PUT'
+      | 'PATCH'
+      | 'DELETE'
+      | 'HEAD'
+      | 'OPTIONS',
     headers,
-    body: ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer(),
-    redirect: 'manual',
+    data: ['GET', 'HEAD'].includes(request.method) ? undefined : Buffer.from(await request.arrayBuffer()),
+    responseType: 'arraybuffer',
+    validateStatus: () => true,
+    maxRedirects: 0,
   })
 
-  const response = new NextResponse(res.body, {
-    status: res.status,
-    headers: res.headers,
+  const response = new NextResponse(upstream.data, {
+    status: upstream.status,
+    headers: upstream.headers as HeadersInit,
   })
   response.headers.set('x-ecobe-proxy-mode', useInternalKey ? 'internal' : 'forwarded')
   return response
