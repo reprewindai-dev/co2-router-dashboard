@@ -24,6 +24,9 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
 
   const headers = new Headers()
   for (const header of FORWARDED_HEADERS) {
+    if (shouldUseInternalKey(path) && header === 'authorization') {
+      continue
+    }
     const value = request.headers.get(header)
     if (value) headers.set(header, value)
   }
@@ -36,7 +39,9 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
         { status: 503 }
       )
     }
+    headers.set('authorization', `Bearer ${internalKey}`)
     headers.set('x-ecobe-internal-key', internalKey)
+    headers.set('x-api-key', internalKey)
   }
 
   const res = await fetch(targetUrl, {
