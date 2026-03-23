@@ -147,7 +147,7 @@ export function DekesHandoffPanel() {
           <div>
             <h3 className="text-lg font-semibold text-white">DEKES Integration</h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Handoff events emitted by CO₂Router → consumed by DEKES as business-activation
+              Handoff events emitted by CO₂ Router → consumed by DEKES as business-activation
               signals. Carbon-decision truth path is unaffected.
             </p>
           </div>
@@ -163,7 +163,7 @@ export function DekesHandoffPanel() {
         {/* Error */}
         {isError && !isLoading && (
           <div className="py-10 text-center">
-            <p className="text-sm text-slate-500">Connect CO₂Router engine to view integration data</p>
+            <p className="text-sm text-slate-500">Connect CO₂Router Engine to view integration data</p>
             <p className="text-xs text-slate-600 mt-1">
               GET /api/v1/integrations/dekes/summary
             </p>

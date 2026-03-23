@@ -71,7 +71,7 @@ export function IntegrationSourcesPanel() {
 
       {isError && (
         <p className="text-sm text-slate-500 py-4 text-center">
-          Connect CO₂Router engine to view integration sources
+          Connect CO₂Router Engine to view integration sources
         </p>
       )}
 

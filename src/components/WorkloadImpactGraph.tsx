@@ -102,7 +102,7 @@ export function WorkloadImpactGraph() {
 
       {isError && (
         <p className="text-sm text-slate-500 py-8 text-center">
-          Connect CO₂Router engine to view workload impact
+          Connect CO₂Router Engine to view workload impact
         </p>
       )}
 
