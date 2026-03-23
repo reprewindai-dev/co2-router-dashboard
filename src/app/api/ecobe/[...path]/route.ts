@@ -17,21 +17,22 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
 
   const engineBaseUrl = getEngineBaseUrl().replace(/\/$/, '')
   const url = new URL(request.url)
+  const useInternalKey = shouldUseInternalKey(path)
 
   const targetUrl = new URL(
     `${engineBaseUrl}/api/v1/${path.map(encodeURIComponent).join('/')}${url.search}`
   )
 
-  const headers = new Headers()
+  const headers: Record<string, string> = {}
   for (const header of FORWARDED_HEADERS) {
-    if (shouldUseInternalKey(path) && header === 'authorization') {
+    if (useInternalKey && header === 'authorization') {
       continue
     }
     const value = request.headers.get(header)
-    if (value) headers.set(header, value)
+    if (value) headers[header] = value
   }
 
-  if (shouldUseInternalKey(path)) {
+  if (useInternalKey) {
     const internalKey = process.env.ECOBE_INTERNAL_API_KEY
     if (!internalKey) {
       return NextResponse.json(
@@ -39,9 +40,9 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
         { status: 503 }
       )
     }
-    headers.set('authorization', `Bearer ${internalKey}`)
-    headers.set('x-ecobe-internal-key', internalKey)
-    headers.set('x-api-key', internalKey)
+    headers.authorization = `Bearer ${internalKey}`
+    headers['x-ecobe-internal-key'] = internalKey
+    headers['x-api-key'] = internalKey
   }
 
   const res = await fetch(targetUrl, {
@@ -51,10 +52,12 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
     redirect: 'manual',
   })
 
-  return new NextResponse(res.body, {
+  const response = new NextResponse(res.body, {
     status: res.status,
     headers: res.headers,
   })
+  response.headers.set('x-ecobe-proxy-mode', useInternalKey ? 'internal' : 'forwarded')
+  return response
 }
 
 export async function GET(request: Request, ctx: { params: Promise<{ path?: string[] }> }) {
