@@ -37,12 +37,24 @@ const api = axios.create({
   timeout: 30_000, // 30 s — prevents hung requests from blocking the UI
 })
 
+function isAxiosError(
+  error: unknown
+): error is {
+  code?: string
+  response?: {
+    status: number
+    data?: unknown
+  }
+} {
+  return typeof error === 'object' && error !== null && 'isAxiosError' in error
+}
+
 // Normalize API errors into human-readable messages.
 // Extracts error.message / error.detail from ECOBE response body when available.
 api.interceptors.response.use(
   (res) => res,
   (err: unknown) => {
-    if (axios.isAxiosError(err)) {
+    if (isAxiosError(err)) {
       const body = err.response?.data as Record<string, unknown> | undefined
       const serverMsg =
         typeof body?.message === 'string'
@@ -55,19 +67,19 @@ api.interceptors.response.use(
 
       if (serverMsg) {
         const normalized = new Error(serverMsg)
-        normalized.name = 'EcobeAPIError'
+        normalized.name = 'CO2RouterAPIError'
         return Promise.reject(normalized)
       }
 
       if (err.code === 'ECONNABORTED') {
         return Promise.reject(
-          new Error('Request timed out — ECOBE Engine did not respond in time')
+          new Error('Request timed out — CO₂Router Engine did not respond in time')
         )
       }
 
       if (!err.response) {
         return Promise.reject(
-          new Error('Cannot reach ECOBE Engine — check NEXT_PUBLIC_ECOBE_API_URL')
+          new Error('Cannot reach CO₂Router Engine — check NEXT_PUBLIC_ECOBE_API_URL')
         )
       }
 
@@ -76,7 +88,7 @@ api.interceptors.response.use(
       if (status === 401 || status === 403)
         return Promise.reject(new Error('Unauthorized — check API credentials'))
       if (status >= 500)
-        return Promise.reject(new Error(`ECOBE Engine error (${status}) — check server logs`))
+        return Promise.reject(new Error(`CO₂Router Engine error (${status}) — check server logs`))
     }
     return Promise.reject(err)
   }
@@ -125,7 +137,7 @@ export interface DekesScheduleRequest {
 export const ecobeApi = {
   // ── Energy ──────────────────────────────────────────────────────────────────
   async calculateEnergyEquation(request: EnergyEquationRequest): Promise<EnergyEquationResult> {
-    const { data } = await api.post('/energy/equation', request)
+    const { data } = await api.post<EnergyEquationResult>('/energy/equation', request)
     return data
   },
 
@@ -134,21 +146,21 @@ export const ecobeApi = {
   async routeGreen(
     request: GreenRoutingRequest
   ): Promise<GreenRoutingResult | PolicyDelayResponse> {
-    const response = await api.post('/route/green', request, {
+    const response = await api.post<GreenRoutingResult | PolicyDelayResponse>('/route/green', request, {
       validateStatus: (s) => s === 200 || s === 202,
     })
     return response.data
   },
 
   async replayDecision(decisionFrameId: string): Promise<DecisionReplayResult> {
-    const { data } = await api.get(`/route/${decisionFrameId}/replay`)
+    const { data } = await api.get<DecisionReplayResult>(`/route/${decisionFrameId}/replay`)
     return data
   },
 
   // Revalidate a lease before executing a queued workload.
   // Returns execute (go), reroute (target changed), or delay (policy block).
   async revalidateLease(leaseId: string): Promise<RevalidateResponse> {
-    const response = await api.post(`/route/${leaseId}/revalidate`, {}, {
+    const response = await api.post<RevalidateResponse>(`/route/${leaseId}/revalidate`, {}, {
       validateStatus: (s) => s === 200 || s === 202,
     })
     return response.data
@@ -157,7 +169,8 @@ export const ecobeApi = {
   // ── Dashboard ────────────────────────────────────────────────────────────────
   async getDashboardMetrics(window: '24h' | '7d' = '24h'): Promise<DashboardMetrics> {
     try {
-      const { data } = await api.get('/dashboard/metrics', { params: { window } })
+      const { data } = await api.get<DashboardMetrics>('/dashboard/metrics', { params: { window } })
+      data.electricityMaps = data.electricityMaps ?? data.providerSignals ?? null
       return data
     } catch (error) {
       console.error('Failed to fetch dashboard metrics:', error)
@@ -167,7 +180,7 @@ export const ecobeApi = {
 
   async getDashboardSavings(window: '24h' | '7d' | '30d' = '24h'): Promise<DashboardSavings> {
     try {
-      const { data } = await api.get('/dashboard/savings', { params: { window } })
+      const { data } = await api.get<DashboardSavings>('/dashboard/savings', { params: { window } })
       return data
     } catch (error) {
       console.error('Failed to fetch dashboard savings:', error)
@@ -177,7 +190,7 @@ export const ecobeApi = {
 
   async getDecisions(limit = 100): Promise<{ decisions: DashboardDecision[] }> {
     try {
-      const { data } = await api.get('/dashboard/decisions', { params: { limit } })
+      const { data } = await api.get<{ decisions: DashboardDecision[] }>('/dashboard/decisions', { params: { limit } })
       return data
     } catch (error) {
       console.error('Failed to fetch decisions:', error)
@@ -185,9 +198,26 @@ export const ecobeApi = {
     }
   },
 
+  async getCIRoutingHealth(): Promise<any> {
+    const { data } = await api.get('/ci/health')
+    return data
+  },
+
+  async getCIAvailableRegions(): Promise<any> {
+    const { data } = await api.get('/ci/regions')
+    return data
+  },
+
+  async getCIDecisions(limit = 20): Promise<{ decisions: any[] }> {
+    const { data } = await api.get<{ decisions: any[] }>('/ci/decisions', {
+      params: { limit },
+    })
+    return data
+  },
+
   async getRegionMapping(): Promise<{ mappings: RegionMapping[] }> {
     try {
-      const { data } = await api.get('/dashboard/region-mapping')
+      const { data } = await api.get<{ mappings: RegionMapping[] }>('/dashboard/region-mapping')
       return data
     } catch (error) {
       console.error('Failed to fetch region mapping:', error)
@@ -199,7 +229,10 @@ export const ecobeApi = {
     zones: string[]
   ): Promise<{ intensities: Array<{ zone: string; carbonIntensity: number }> }> {
     try {
-      const { data } = await api.post('/dashboard/what-if/intensities', { zones })
+      const { data } = await api.post<{ intensities: Array<{ zone: string; carbonIntensity: number }> }>(
+        '/dashboard/what-if/intensities',
+        { zones }
+      )
       return data
     } catch (error) {
       console.error('Failed to fetch what-if intensities:', error)
@@ -210,7 +243,7 @@ export const ecobeApi = {
   // ── Forecasting ──────────────────────────────────────────────────────────────
   async getRegionForecast(region: string, hoursAhead = 72): Promise<RegionForecast> {
     try {
-      const { data } = await api.get(`/forecasting/${region}/forecasts`, {
+      const { data } = await api.get<RegionForecast>(`/forecasting/${region}/forecasts`, {
         params: { hoursAhead },
       })
       return data
@@ -226,7 +259,7 @@ export const ecobeApi = {
     lookAheadHours = 48
   ): Promise<OptimalWindow> {
     try {
-      const { data } = await api.get(`/forecasting/${region}/optimal-window`, {
+      const { data } = await api.get<OptimalWindow>(`/forecasting/${region}/optimal-window`, {
         params: { durationHours, lookAheadHours },
       })
       return data
@@ -239,7 +272,7 @@ export const ecobeApi = {
   // ── Provider Health ───────────────────────────────────────────────────────────
   async getProviderHealth(): Promise<MethodologyProviders> {
     try {
-      const { data } = await api.get('/methodology/providers')
+      const { data } = await api.get<MethodologyProviders>('/methodology/providers')
       return data
     } catch (error) {
       console.error('Failed to fetch provider health:', error)
@@ -303,32 +336,32 @@ export const ecobeApi = {
     startDate?: string
     endDate?: string
   }): Promise<DekesAnalytics> {
-    const { data } = await api.get('/dekes/analytics', { params })
+    const { data } = await api.get<DekesAnalytics>('/dekes/analytics', { params })
     return data
   },
 
   // ── Intelligence ──────────────────────────────────────────────────────────────
   async getIntelligencePatterns(regions: string[]): Promise<PatternsResponse> {
-    const { data } = await api.get('/intelligence/patterns', {
+    const { data } = await api.get<PatternsResponse>('/intelligence/patterns', {
       params: { region: regions.join(',') },
     })
     return data
   },
 
   async predictOpportunity(region: string): Promise<OpportunityResult> {
-    const { data } = await api.post('/intelligence/predict-opportunity', { region })
+    const { data } = await api.post<OpportunityResult>('/intelligence/predict-opportunity', { region })
     return data
   },
 
   async getBestWindow(request: BestWindowRequest): Promise<BestWindowResult> {
-    const { data } = await api.post('/intelligence/best-window', request)
+    const { data } = await api.post<BestWindowResult>('/intelligence/best-window', request)
     return data
   },
 
   // ── Grid Intelligence ───────────────────────────────────────────────────────────
   async getGridHeroMetrics(): Promise<GridHeroMetrics> {
     try {
-      const { data } = await api.get('/intelligence/grid/hero-metrics')
+      const { data } = await api.get<GridHeroMetrics>('/intelligence/grid/hero-metrics')
       return data
     } catch (error) {
       console.error('Failed to fetch grid hero metrics:', error)
@@ -338,7 +371,7 @@ export const ecobeApi = {
 
   async getGridSummary(regions?: string[]): Promise<GridSignalSummary> {
     try {
-      const { data } = await api.get('/intelligence/grid/summary', {
+      const { data } = await api.get<GridSignalSummary>('/intelligence/grid/summary', {
         params: regions ? { regions } : undefined,
       })
       return data
@@ -350,7 +383,7 @@ export const ecobeApi = {
 
   async getGridOpportunities(regions?: string[]): Promise<GridOpportunities> {
     try {
-      const { data } = await api.get('/intelligence/grid/opportunities', {
+      const { data } = await api.get<GridOpportunities>('/intelligence/grid/opportunities', {
         params: regions ? { regions } : undefined,
       })
       return data
@@ -374,7 +407,7 @@ export const ecobeApi = {
 
   async getGridImportLeakage(regions?: string[]): Promise<GridImportLeakage> {
     try {
-      const { data } = await api.get('/intelligence/grid/import-leakage', {
+      const { data } = await api.get<GridImportLeakage>('/intelligence/grid/import-leakage', {
         params: regions ? { regions } : undefined,
       })
       return data
@@ -400,26 +433,26 @@ export const ecobeApi = {
   // Read-only — handoffs are emitted by the ECOBE engine, never by the dashboard.
   // All routes resolve through the existing /api/ecobe proxy → ECOBE engine.
   async getDekesIntegrationSummary(): Promise<DekesIntegrationSummary> {
-    const { data } = await api.get('/integrations/dekes/summary')
+    const { data } = await api.get<DekesIntegrationSummary>('/integrations/dekes/summary')
     return data
   },
 
   async getDekesIntegrationEvents(
     limit = 50
   ): Promise<{ handoffs: DekesHandoff[] }> {
-    const { data } = await api.get('/integrations/dekes/events', {
+    const { data } = await api.get<{ handoffs: DekesHandoff[] }>('/integrations/dekes/events', {
       params: { limit },
     })
     return data
   },
 
   async getDekesHandoffById(handoffId: string): Promise<DekesHandoff> {
-    const { data } = await api.get(`/integrations/dekes/events/${encodeURIComponent(handoffId)}`)
+    const { data } = await api.get<DekesHandoff>(`/integrations/dekes/events/${encodeURIComponent(handoffId)}`)
     return data
   },
 
   async getDekesIntegrationMetrics(): Promise<{ orgRisks: DekesOrgRisk[] }> {
-    const { data } = await api.get('/integrations/dekes/metrics')
+    const { data } = await api.get<{ orgRisks: DekesOrgRisk[] }>('/integrations/dekes/metrics')
     return data
   },
 
@@ -427,68 +460,6 @@ export const ecobeApi = {
   async health() {
     const { data } = await api.get('/health')
     return data
-  },
-
-  // ── CI/CD Routing ─────────────────────────────────────────────────────────────
-  async getCIRoutingHealth() {
-    try {
-      const { data } = await api.get('/ci/health')
-      return data
-    } catch (error) {
-      console.error('Failed to fetch CI routing health:', error)
-      throw error
-    }
-  },
-
-  async getCIAvailableRegions() {
-    try {
-      const { data } = await api.get('/ci/regions')
-      return data
-    } catch (error) {
-      console.error('Failed to fetch CI regions:', error)
-      throw error
-    }
-  },
-
-  async getCIDecisions(limit = 50) {
-    try {
-      const { data } = await api.get('/ci/decisions', { params: { limit } })
-      return data
-    } catch (error) {
-      console.error('Failed to fetch CI decisions:', error)
-      throw error
-    }
-  },
-
-  // ── Database Health ─────────────────────────────────────────────────────────────
-  async getDatabaseHealth() {
-    try {
-      const { data } = await api.get('/database/health')
-      return data
-    } catch (error) {
-      console.error('Failed to fetch database health:', error)
-      throw error
-    }
-  },
-
-  async testDatabaseConnection() {
-    try {
-      const { data } = await api.post('/database/test')
-      return data
-    } catch (error) {
-      console.error('Failed to test database connection:', error)
-      throw error
-    }
-  },
-
-  async getDatabasePoolStatus() {
-    try {
-      const { data } = await api.get('/database/pool-status')
-      return data
-    } catch (error) {
-      console.error('Failed to fetch database pool status:', error)
-      throw error
-    }
   },
 }
 

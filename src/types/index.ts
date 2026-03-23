@@ -192,8 +192,17 @@ export interface DashboardMetrics {
   topChosenRegion: string | null
   p95LatencyDeltaMs: number | null
   dataFreshnessMaxSeconds: number | null
-  electricityMapsSuccessRate: number | null
-  electricityMaps: {
+  providerSignals: {
+    successRate: number | null
+    successCount: number
+    failureCount: number
+    lastSuccessAt: string | null
+    lastFailureAt: string | null
+    lastError: string | null
+    activeSources?: string[]
+    degradedSources?: string[]
+  } | null
+  electricityMaps?: {
     successRate: number | null
     successCount: number
     failureCount: number
@@ -524,6 +533,8 @@ export interface BestWindowResult {
 
 export interface GridSignalSummaryRegion {
   region: string
+  carbonIntensity?: number | null
+  source?: string | null
   balancingAuthority: string | null
   demandRampPct: number | null
   renewableRatio: number | null
@@ -666,7 +677,7 @@ export function getStabilityColor(stability: ForecastStability | null): string {
 
 // ─── DEKES Integration ────────────────────────────────────────────────────────
 // All types below are READ-ONLY from the dashboard's perspective.
-// Handoffs are emitted by the ECOBE engine — never written by the dashboard.
+// Handoffs are emitted by the CO₂Router engine — never written by the dashboard.
 
 export type DekesHandoffEventType =
   | 'BUDGET_WARNING'
