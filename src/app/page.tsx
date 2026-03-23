@@ -168,7 +168,7 @@ export default function LandingPage() {
         curtailmentProbability: 0.02,
         importCarbonLeakageScore: 0.15,
         source_used: 'WattTime',
-        validation_source: 'Electricity Maps',
+        validation_source: 'Electricity Maps (internal)',
         fallback_used: false,
         estimatedFlag: false,
         syntheticFlag: false,
@@ -195,7 +195,7 @@ export default function LandingPage() {
             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
               <span className="text-white font-bold text-xl">🌱</span>
             </div>
-            <span className="text-lg font-bold text-white">CO₂ Router</span>
+            <span className="text-lg font-bold text-white">CO₂Router</span>
             {isDemoMode && (
               <span className="ml-3 px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs font-semibold rounded border border-amber-500/40">
                 DEMO MODE
@@ -238,7 +238,7 @@ export default function LandingPage() {
               <span className="block text-emerald-400">Automatically.</span>
             </h1>
             <p className="text-xl text-gray-400 mb-8 leading-relaxed">
-              CO₂ Router uses real-time grid signals to route your cloud workloads to the cleanest
+              CO₂Router uses real-time grid signals to route your cloud workloads to the cleanest
               available region. Measurable carbon reduction, zero code changes.
             </p>
 
@@ -592,7 +592,7 @@ export default function LandingPage() {
                 color: 'emerald',
               },
               {
-                name: 'Electricity Maps',
+                name: 'Electricity Maps (internal)',
                 signal: 'Flow-traced Intensity',
                 description: 'Grid intelligence with electricity mix and cross-zone effects.',
                 status: 'Live',
@@ -777,7 +777,7 @@ export default function LandingPage() {
                 <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
                   <span className="text-white font-bold text-lg">🌱</span>
                 </div>
-                <span className="text-lg font-bold text-white">CO₂ Router</span>
+                <span className="text-lg font-bold text-white">CO₂Router</span>
               </div>
               <p className="text-gray-500 text-sm">
                 Carbon-aware compute routing engine built for a sustainable future.
@@ -829,10 +829,10 @@ export default function LandingPage() {
 
           <div className="border-t border-gray-800 pt-8 flex items-center justify-between">
             <p className="text-gray-500 text-sm">
-              © 2026 CO₂ Router. Built for a carbon-neutral future.
+              © 2026 CO₂Router. Built for a carbon-neutral future.
             </p>
             <p className="text-gray-500 text-sm">
-              Powered by WattTime, Electricity Maps, Ember, EIA-930
+              Powered by WattTime, Electricity Maps (internal), Ember, EIA-930
             </p>
           </div>
         </div>

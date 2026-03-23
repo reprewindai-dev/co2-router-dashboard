@@ -7,7 +7,7 @@ import { Providers } from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'CO₂ Router — Carbon-Aware Compute Operations Console',
+  title: 'CO₂Router — Carbon-Aware Compute Operations Console',
   description: 'Real-time carbon routing, decision engine status, and workload optimization',
 }
 
@@ -30,7 +30,7 @@ export default function RootLayout({
                       <span className="text-white font-bold text-xl">🌱</span>
                     </div>
                     <div>
-                      <h1 className="text-xl font-bold text-white">CO₂ Router</h1>
+                      <h1 className="text-xl font-bold text-white">CO₂Router</h1>
                       <p className="text-xs text-slate-400">Carbon-Aware Compute Operations</p>
                     </div>
                   </div>
@@ -60,8 +60,8 @@ export default function RootLayout({
             <footer className="border-t border-slate-800 bg-slate-900/50 mt-16">
               <div className="container mx-auto px-6 py-8">
                 <div className="flex items-center justify-between text-sm text-slate-400">
-                  <p>© 2026 CO₂ Router. Carbon-aware compute for a sustainable future.</p>
-                  <p>Signal layer: Electricity Maps · Ember</p>
+                  <p>© 2026 CO₂Router. Carbon-aware compute for a sustainable future.</p>
+                  <p>Signal layer: CO₂Router</p>
                 </div>
               </div>
             </footer>

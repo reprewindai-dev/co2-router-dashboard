@@ -17,7 +17,7 @@ export function CarbonIntensityCard({ region }: Props) {
     queryKey: ['carbon-intensity', region.code],
     queryFn: async () => {
       try {
-        const summary = await ecobeApi.gridSummary()
+        const summary = await ecobeApi.getGridSummary()
         const match = summary.regions?.find(
           (r: any) => r.region === region.code || r.region === region.name
         )
