@@ -1,573 +1,630 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { format, formatDistanceStrict } from 'date-fns'
+import { ArrowRight, Check, Clock3, Cpu, DollarSign, GitBranch, ShieldCheck, Zap } from 'lucide-react'
 
 import { CO2RouterLogo } from '@/components/CO2RouterLogo'
-import { ecobeApi, type GreenRoutingRequest } from '@/lib/api'
+import type { MethodologyProviders } from '@/types'
 
-const REGION_NAMES: Record<string, string> = {
-  'us-east-1': 'US East',
-  'us-west-2': 'US West',
-  'eu-west-1': 'Ireland',
-  'eu-central-1': 'Frankfurt',
-  'ap-southeast-1': 'Singapore',
-  'ap-northeast-1': 'Tokyo',
+type DemoResponse = {
+  workloadType: string
+  baselineRegion: string
+  baselineCarbonIntensity: number
+  baselineEstimatedCost: number
+  selectedRegion: string
+  selectedCarbonIntensity: number
+  selectedEstimatedCost: number
+  carbonSavingsPct: number
+  costSavingsPct: number
+  recommendedDelaySeconds: number
+  recommendedDelayWindow: {
+    startTime: string
+    endTime: string
+  } | null
+  confidence: number
+  explanation: string
+  policyMode: 'optimize'
+  providers: {
+    sourceUsed: string | null
+    validationSource: string | null
+    fallbackUsed: boolean
+    qualityTier: 'high' | 'medium' | 'low'
+  }
+  alternatives: Array<{
+    region: string
+    carbonIntensity: number
+    estimatedCost: number
+    score: number
+  }>
+  decisionId: string | null
+  generatedAt: string
 }
 
-type RegionDisplay = {
-  id: string
-  name: string
-  carbon: number
-  renewable: number
-  ramp: number
-  signalQuality: string
-}
-
-type DecisionState = Record<string, unknown> | null
-
-const scenarios = [
+const demoScenarios = [
   {
-    label: 'Inference burst',
-    workloadType: 'AI Inference Burst',
-    description: 'Latency-sensitive burst traffic with a 20 minute execution budget.',
-    durationMinutes: 20,
-    mode: 'optimize' as const,
-    policyMode: 'default' as const,
+    id: 'build',
+    label: 'Build pipeline',
+    summary: 'Node build + test on a standard CI lane.',
+    candidateRegions: ['eastus', 'westus2', 'northeurope', 'norwayeast'],
+    baselineRegion: 'eastus',
+    canDelay: true,
   },
   {
-    label: 'Training lease',
-    workloadType: 'GPU Training Lease',
-    description: 'Delay-tolerant training run where carbon reduction beats raw immediacy.',
-    durationMinutes: 180,
-    mode: 'assurance' as const,
-    policyMode: 'sec_disclosure_strict' as const,
+    id: 'test',
+    label: 'Integration matrix',
+    summary: 'Heavier matrix job with multiple shards.',
+    candidateRegions: ['eastus', 'westus2', 'northeurope', 'norwayeast'],
+    baselineRegion: 'eastus',
+    canDelay: true,
   },
   {
-    label: 'Disclosure export',
-    workloadType: 'Audit-Ready Batch',
-    description: 'Assurance-grade routing for customers who need traceable disclosure records.',
-    durationMinutes: 90,
-    mode: 'assurance' as const,
-    policyMode: 'eu_24x7_ready' as const,
+    id: 'batch',
+    label: 'Nightly batch',
+    summary: 'Scheduled data processing with window flexibility.',
+    candidateRegions: ['eastus', 'westus2', 'northeurope', 'norwayeast'],
+    baselineRegion: 'eastus',
+    canDelay: true,
+  },
+] as const
+
+const pricingTiers = [
+  {
+    name: 'Starter',
+    price: '$49',
+    blurb: 'Fast CI routing wedge for smaller teams.',
+    features: ['5,000 routed jobs', 'GitHub Action integration', 'Savings proof output'],
+  },
+  {
+    name: 'Growth',
+    price: '$199',
+    blurb: 'Routing and timing control for production workloads.',
+    features: ['50,000 routed jobs', 'Delay optimization', 'Advanced reporting + API access'],
+  },
+  {
+    name: 'Scale',
+    price: '$599+',
+    blurb: 'Control-plane fit for larger estates and compliance work.',
+    features: ['Unlimited jobs', 'Multi-region orchestration', 'Priority support + export surfaces'],
   },
 ]
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value))
+function formatUsd(value: number) {
+  return `$${value.toFixed(2)}`
 }
 
-function toSparklinePoints(values: number[]) {
-  if (values.length === 0) return ''
-  const max = Math.max(...values)
-  const min = Math.min(...values)
-  return values
-    .map((value, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * 320
-      const normalized = max === min ? 0.5 : (value - min) / (max - min)
-      const y = 130 - normalized * 92
-      return `${x},${y}`
-    })
-    .join(' ')
-}
-
-function qualityTone(qualityTier?: unknown) {
-  const tier = typeof qualityTier === 'string' ? qualityTier.toLowerCase() : ''
-  if (tier.includes('high') || tier.includes('strong')) return 'text-emerald-300 border-emerald-400/30 bg-emerald-500/10'
-  if (tier.includes('medium')) return 'text-amber-200 border-amber-400/30 bg-amber-500/10'
-  return 'text-sky-200 border-sky-400/30 bg-sky-500/10'
+function formatDelay(delaySeconds: number, window: DemoResponse['recommendedDelayWindow']) {
+  if (!delaySeconds || !window) return 'Run now'
+  return `${formatDistanceStrict(Date.now(), new Date(window.startTime))} until ${format(
+    new Date(window.startTime),
+    'MMM d, h:mm a'
+  )}`
 }
 
 export default function LandingPage() {
-  const [regions, setRegions] = useState<RegionDisplay[]>([])
-  const [activeScenario, setActiveScenario] = useState(0)
-  const [decision, setDecision] = useState<DecisionState>(null)
-  const [decisionError, setDecisionError] = useState<string | null>(null)
-  const [routing, setRouting] = useState(false)
-  const [loadingSignals, setLoadingSignals] = useState(true)
+  const [scenarioId, setScenarioId] = useState<(typeof demoScenarios)[number]['id']>('build')
+  const [demoRunNonce, setDemoRunNonce] = useState(0)
+  const [demo, setDemo] = useState<DemoResponse | null>(null)
+  const [demoLoading, setDemoLoading] = useState(true)
+  const [demoError, setDemoError] = useState<string | null>(null)
+  const [providers, setProviders] = useState<MethodologyProviders['providers']>([])
+
+  const scenario = useMemo(
+    () => demoScenarios.find((entry) => entry.id === scenarioId) ?? demoScenarios[0],
+    [scenarioId]
+  )
 
   useEffect(() => {
-    let cancelled = false
+    let active = true
 
-    async function loadSignals() {
+    async function loadProviderHealth() {
       try {
-        const summary = await ecobeApi.getGridSummary()
-        if (cancelled) return
-
-        const mapped = (summary?.regions ?? []).map((region: any) => ({
-          id: region.region,
-          name: REGION_NAMES[region.region] ?? region.region,
-          carbon: Math.round(region.carbonIntensity ?? 0),
-          renewable: Math.round((region.renewableRatio ?? 0) * 100),
-          ramp: Math.round(region.demandRampPct ?? 0),
-          signalQuality:
-            region.signalQuality ?? region.signal_quality ?? region.dataQuality ?? 'stable',
-        }))
-
-        setRegions(mapped)
-      } catch (error) {
-        if (!cancelled) {
-          setDecisionError(
-            error instanceof Error ? error.message : 'Live signal layer is unavailable.'
-          )
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingSignals(false)
-        }
+        const response = await fetch('/api/providers/health', { cache: 'no-store' })
+        if (!response.ok) return
+        const data = (await response.json()) as MethodologyProviders
+        if (active) setProviders(data.providers ?? [])
+      } catch {
+        // Keep the page resilient even if provider health is unavailable.
       }
     }
 
-    loadSignals()
+    void loadProviderHealth()
+
     return () => {
-      cancelled = true
+      active = false
     }
   }, [])
 
-  const averageCarbon = useMemo(() => {
-    if (regions.length === 0) return null
-    return Math.round(regions.reduce((sum, region) => sum + region.carbon, 0) / regions.length)
-  }, [regions])
+  useEffect(() => {
+    let active = true
 
-  const cleanestRegion = useMemo(() => {
-    return [...regions].sort((a, b) => a.carbon - b.carbon)[0] ?? null
-  }, [regions])
+    async function runDemo() {
+      try {
+        setDemoLoading(true)
+        setDemoError(null)
 
-  const sparkline = useMemo(() => {
-    return toSparklinePoints(regions.map((region) => region.carbon || 0))
-  }, [regions])
+        const response = await fetch('/api/demo/route', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            workloadType: scenario.id,
+            candidateRegions: scenario.candidateRegions,
+            baselineRegion: scenario.baselineRegion,
+            canDelay: scenario.canDelay,
+            carbonSensitivity: 0.68,
+            costSensitivity: 0.2,
+            latencySensitivity: 0.12,
+          }),
+        })
 
-  async function handleRouteGreen() {
-    if (regions.length === 0) return
+        const data = (await response.json()) as DemoResponse | { error: string }
 
-    const scenario = scenarios[activeScenario]
-    const request: GreenRoutingRequest = {
-      preferredRegions: regions.map((region) => region.id),
-      durationMinutes: scenario.durationMinutes,
-      mode: scenario.mode,
-      policyMode: scenario.policyMode,
-      carbonWeight: scenario.mode === 'assurance' ? 0.6 : 0.45,
-      latencyWeight: scenario.mode === 'assurance' ? 0.15 : 0.35,
-      costWeight: 0.25,
+        if (!response.ok) {
+          throw new Error('error' in data ? data.error : 'Unable to compute demo decision')
+        }
+
+        if (active) setDemo(data as DemoResponse)
+      } catch (error) {
+        if (active) {
+          setDemoError(error instanceof Error ? error.message : 'Unable to compute demo decision')
+          setDemo(null)
+        }
+      } finally {
+        if (active) setDemoLoading(false)
+      }
     }
 
-    setRouting(true)
-    setDecisionError(null)
+    void runDemo()
 
-    try {
-      const result = await ecobeApi.routeGreen(request)
-      setDecision({
-        ...result,
-        scenario: scenario.workloadType,
-      })
-    } catch (error) {
-      setDecision(null)
-      setDecisionError(error instanceof Error ? error.message : 'Routing failed.')
-    } finally {
-      setRouting(false)
+    return () => {
+      active = false
     }
-  }
+  }, [scenario, demoRunNonce])
+
+  const providerSummary = useMemo(() => {
+    const healthy = providers.filter((provider) => provider.status === 'healthy').length
+    return {
+      healthy,
+      total: providers.length,
+    }
+  }, [providers])
 
   return (
-    <div className="space-y-16 pb-10">
-      <section className="relative overflow-hidden rounded-[32px] border border-slate-800/80 bg-slate-950/65 px-6 py-10 shadow-[0_24px_80px_rgba(2,6,23,0.55)] md:px-10 md:py-14">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(16,185,129,0.16),transparent_24%),radial-gradient(circle_at_80%_0%,rgba(6,182,212,0.16),transparent_24%)]" />
-        <div className="relative grid gap-10 xl:grid-cols-[1.1fr_0.9fr]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.14),transparent_32%),radial-gradient(circle_at_20%_20%,rgba(34,211,238,0.12),transparent_28%),#020617] text-slate-100">
+      <header className="sticky top-0 z-50 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <CO2RouterLogo size="md" />
+          <nav className="hidden items-center gap-6 md:flex">
+            <a href="#demo" className="text-sm text-slate-400 transition hover:text-white">
+              Live Demo
+            </a>
+            <a href="#how" className="text-sm text-slate-400 transition hover:text-white">
+              How It Works
+            </a>
+            <a href="#pricing" className="text-sm text-slate-400 transition hover:text-white">
+              Pricing
+            </a>
+          </nav>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/console"
+              className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:text-white"
+            >
+              Console
+            </Link>
+            <a
+              href="#demo"
+              className="rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+            >
+              See Live Demo
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section className="mx-auto grid max-w-7xl gap-12 px-6 pb-20 pt-20 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-8">
-            <div className="inline-flex items-center gap-3 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 pulse-glow" />
-              Live command surface for carbon routing, assurance, and disclosure.
+            <div className="inline-flex items-center gap-3 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-300 pulse-glow" />
+              Compute optimization control plane
             </div>
 
-            <div className="space-y-5">
-              <CO2RouterLogo size="xl" />
-              <div className="space-y-4">
-                <h1 className="max-w-4xl font-[var(--font-display)] text-5xl font-bold leading-[0.95] text-white md:text-7xl">
-                  The carbon-aware compute
-                  <span className="gradient-text block">control plane investors expect.</span>
-                </h1>
-                <p className="max-w-2xl text-lg leading-8 text-slate-300">
-                  CO2 Router turns routing, disclosure exports, signal provenance, and workload timing
-                  into one production surface. It does not just show green windows. It proves why a
-                  decision was made, what risk was accepted, and what emissions were avoided.
-                </p>
-              </div>
+            <div className="space-y-6">
+              <h1 className="max-w-4xl font-[var(--font-display)] text-5xl font-semibold leading-[0.94] text-white md:text-7xl">
+                Stop wasting money on inefficient compute.
+              </h1>
+              <p className="max-w-2xl text-lg leading-8 text-slate-300 md:text-xl">
+                CO2 Router decides where and when workloads run, reducing compute waste, lowering emissions,
+                and generating audit-ready proof automatically.
+              </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-4">
-              <MetricPill label="Live regions" value={String(regions.length || 0)} tone="emerald" />
-              <MetricPill
-                label="Average signal"
-                value={averageCarbon != null ? `${averageCarbon} g/kWh` : '--'}
-                tone="cyan"
-              />
-              <MetricPill
-                label="Best region"
-                value={cleanestRegion?.name ?? '--'}
-                tone="blue"
-              />
-              <MetricPill
-                label="Modes"
-                value="optimize + assurance"
-                tone="amber"
-              />
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <a
+                href="#demo"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-emerald-300"
+              >
+                See Live Demo
+                <ArrowRight className="h-4 w-4" />
+              </a>
+              <a
+                href="#github"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-700 px-6 py-3 font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900/70"
+              >
+                Connect GitHub
+                <GitBranch className="h-4 w-4" />
+              </a>
             </div>
 
-            <div className="flex flex-wrap gap-4">
-              <Link
-                href="/console"
-                className="rounded-full bg-emerald-400 px-6 py-3 font-semibold text-slate-950 transition hover:bg-emerald-300"
-              >
-                Open Command Center
-              </Link>
-              <button
-                type="button"
-                onClick={() => document.getElementById('routing-theater')?.scrollIntoView()}
-                className="rounded-full border border-slate-700 bg-slate-900/60 px-6 py-3 font-semibold text-white transition hover:border-slate-600 hover:bg-slate-900"
-              >
-                See Live Routing
-              </button>
-              <Link
-                href="/methodology"
-                className="rounded-full border border-slate-800 bg-slate-950/60 px-6 py-3 font-semibold text-slate-300 transition hover:border-slate-700 hover:text-white"
-              >
-                Read Methodology
-              </Link>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <HeroMetric label="Routing latency" value="< 1s" detail="Decision surface tuned for CI/CD" />
+              <HeroMetric
+                label="Signal fabric"
+                value={`${providerSummary.healthy}/${providerSummary.total || 4}`}
+                detail="Healthy live providers in the current build"
+              />
+              <HeroMetric label="Proof output" value="Audit-ready" detail="Decision explanation + provenance preserved" />
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="glass-card-glow signal-scan relative overflow-hidden rounded-[28px] p-6">
-              <div className="mb-6 flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Signal Fabric</p>
-                  <h2 className="mt-2 font-[var(--font-display)] text-2xl font-semibold text-white">
-                    Grid pulse right now
-                  </h2>
-                </div>
-                <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                  LIVE
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
-                <svg viewBox="0 0 320 150" className="h-44 w-full animate-waveform">
-                  <defs>
-                    <linearGradient id="signal-line" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#34d399" />
-                      <stop offset="50%" stopColor="#22d3ee" />
-                      <stop offset="100%" stopColor="#60a5fa" />
-                    </linearGradient>
-                  </defs>
-                  <rect x="0" y="0" width="320" height="150" fill="rgba(2,6,23,0.7)" />
-                  {[30, 60, 90, 120].map((y) => (
-                    <line
-                      key={y}
-                      x1="0"
-                      x2="320"
-                      y1={y}
-                      y2={y}
-                      stroke="rgba(51,65,85,0.45)"
-                      strokeDasharray="4 6"
-                    />
-                  ))}
-                  {sparkline ? (
-                    <polyline
-                      fill="none"
-                      stroke="url(#signal-line)"
-                      strokeWidth="3.5"
-                      points={sparkline}
-                      className="line-draw"
-                    />
-                  ) : (
-                    <polyline
-                      fill="none"
-                      stroke="url(#signal-line)"
-                      strokeWidth="3.5"
-                      points="0,92 56,88 112,54 168,74 224,48 280,68 320,40"
-                      className="line-draw"
-                    />
-                  )}
-                </svg>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                {regions.slice(0, 3).map((region) => (
-                  <div key={region.id} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold text-white">{region.name}</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
-                          {region.signalQuality}
-                        </p>
-                      </div>
-                      <p className="text-sm font-semibold text-emerald-300">{region.carbon} g</p>
-                    </div>
-                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-400"
-                        style={{ width: `${clamp(100 - region.carbon / 8, 18, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <FeatureMiniCard
-                title="Assurance mode"
-                body="Conservative routing with provenance, confidence bands, and replay-ready evidence."
-              />
-              <FeatureMiniCard
-                title="Disclosure export"
-                body="Operational history structured for hourly reporting and audit workflows."
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-5 md:grid-cols-4">
-        <CommandStrip
-          title="Routing"
-          value="Live path selection"
-          detail="Immediate routing, replay, and revalidation across cloud regions."
-        />
-        <CommandStrip
-          title="Signals"
-          value="Tiered signal stack"
-          detail="Primary, validation, and fallback sources with tracked disagreement."
-        />
-        <CommandStrip
-          title="Assurance"
-          value="Audit-safe mode"
-          detail="Lowest defensible signal doctrine, conservative handling, and exports."
-        />
-        <CommandStrip
-          title="Activation"
-          value="DEKES handoff"
-          detail="Buyer-intelligence workloads routed through the same carbon command plane."
-        />
-      </section>
-
-      <section
-        id="routing-theater"
-        className="grid gap-6 rounded-[30px] border border-slate-800 bg-slate-950/60 p-6 md:p-8 xl:grid-cols-[0.95fr_1.05fr]"
-      >
-        <div className="space-y-6">
-          <SectionHeader
-            eyebrow="Routing Theater"
-            title="Live workload routing with visible confidence and policy context."
-            body="This is the surface buyers should feel immediately: region quality, assurance behavior, and decision payloads that read like a command center, not a toy demo."
-          />
-
-          <div className="grid gap-3">
-            {scenarios.map((scenario, index) => (
-              <button
-                key={scenario.label}
-                type="button"
-                onClick={() => {
-                  setActiveScenario(index)
-                  setDecision(null)
-                  setDecisionError(null)
-                }}
-                className={`rounded-2xl border px-5 py-4 text-left transition ${
-                  activeScenario === index
-                    ? 'border-emerald-400/40 bg-emerald-500/10'
-                    : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-white">{scenario.label}</p>
-                    <p className="mt-1 text-sm text-slate-400">{scenario.description}</p>
-                  </div>
-                  <span className="rounded-full border border-slate-700 px-3 py-1 text-xs uppercase tracking-[0.22em] text-slate-300">
-                    {scenario.mode}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {regions.map((region) => (
-              <div key={region.id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-white">{region.name}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
-                      renewable {region.renewable}% · demand {region.ramp >= 0 ? '+' : ''}
-                      {region.ramp}%
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-emerald-300">{region.carbon}</p>
-                    <p className="text-xs text-slate-500">g/kWh</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleRouteGreen}
-            disabled={routing || loadingSignals || regions.length === 0}
-            className="w-full rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-6 py-4 font-semibold text-slate-950 transition hover:from-emerald-300 hover:to-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {routing ? 'Routing live workload...' : 'Route this workload now'}
-          </button>
-
-          {decisionError && (
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-              {decisionError}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-5">
-          <div className="glass-card-glow rounded-[28px] p-6">
+          <div className="rounded-[28px] border border-slate-800 bg-slate-950/70 p-6 shadow-[0_30px_100px_rgba(2,6,23,0.65)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Decision Frame</p>
-                <h3 className="mt-2 font-[var(--font-display)] text-2xl font-semibold text-white">
-                  {decision ? 'Active routing recommendation' : 'Waiting for a live routing call'}
-                </h3>
+                <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Execution preview</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">Control-plane decision</h2>
               </div>
-              <span
-                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
-                  qualityTone(decision?.qualityTier)
-                }`}
-              >
-                {typeof decision?.qualityTier === 'string' ? decision.qualityTier : 'signal ready'}
+              <span className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-300">
+                live
               </span>
             </div>
 
-            {decision ? (
-              <div className="mt-6 space-y-5">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <DecisionMetric
-                    label="Selected region"
-                    value={String(decision.selectedRegion ?? '--')}
-                    detail={String(decision.scenario ?? scenarios[activeScenario].workloadType)}
+            <div className="mt-6 grid gap-4">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-400">Default execution</p>
+                  <span className="text-xs uppercase tracking-[0.18em] text-slate-500">baseline</span>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <MetricPair label="Region" value={demo?.baselineRegion ?? scenario.baselineRegion} />
+                  <MetricPair
+                    label="Carbon"
+                    value={demo ? `${demo.baselineCarbonIntensity.toFixed(0)} gCO2/kWh` : '...'}
                   />
-                  <DecisionMetric
-                    label="Carbon delta"
-                    value={
-                      decision.carbon_delta_g_per_kwh != null
-                        ? `${Math.round(Number(decision.carbon_delta_g_per_kwh))} g/kWh`
-                        : String(decision.carbonDelta ?? '--')
-                    }
-                    detail="Improvement against baseline"
-                  />
-                  <DecisionMetric
-                    label="Score"
-                    value={
-                      decision.score != null
-                        ? `${Math.round(Number(decision.score) <= 1 ? Number(decision.score) * 100 : Number(decision.score))}/100`
-                        : '--'
-                    }
-                    detail="Normalized routing quality"
-                  />
-                  <DecisionMetric
-                    label="Source used"
-                    value={String(decision.source_used ?? '--')}
-                    detail={String(decision.validation_source ?? 'No validation source')}
+                  <MetricPair
+                    label="Cost"
+                    value={demo ? formatUsd(demo.baselineEstimatedCost) : '...'}
                   />
                 </div>
+              </div>
 
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Operator doctrine</p>
-                  <p className="mt-3 text-sm leading-7 text-slate-200">
-                    {String(
-                      decision.doctrine ??
-                        'CO2 Router selects the lowest defensible signal: the freshest, best-documented carbon signal available at routing time.'
-                    )}
-                  </p>
+              <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-emerald-100">CO2 Router decision</p>
+                  <span className="text-xs uppercase tracking-[0.18em] text-emerald-200">optimized</span>
                 </div>
-
-                {typeof decision.legalDisclaimer === 'string' && decision.legalDisclaimer && (
-                  <p className="text-sm leading-7 text-amber-100/80">
-                    {String(decision.legalDisclaimer)}
-                  </p>
-                )}
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <MetricPair label="Region" value={demo?.selectedRegion ?? '...'} />
+                  <MetricPair
+                    label="Carbon"
+                    value={demo ? `${demo.selectedCarbonIntensity.toFixed(0)} gCO2/kWh` : '...'}
+                  />
+                  <MetricPair
+                    label="Cost"
+                    value={demo ? formatUsd(demo.selectedEstimatedCost) : '...'}
+                  />
+                </div>
               </div>
-            ) : (
-              <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950/70 p-8 text-slate-400">
-                Trigger a live routing request to populate the selected region, policy mode, confidence, and doctrine payload.
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <SignalCard
+                  label="Carbon savings"
+                  value={demo ? `${demo.carbonSavingsPct.toFixed(1)}%` : '--'}
+                  icon={Zap}
+                />
+                <SignalCard
+                  label="Cost savings"
+                  value={demo ? `${demo.costSavingsPct.toFixed(1)}%` : '--'}
+                  icon={DollarSign}
+                />
+                <SignalCard
+                  label="Confidence"
+                  value={demo ? `${Math.round(demo.confidence * 100)}%` : '--'}
+                  icon={ShieldCheck}
+                />
               </div>
-            )}
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-400">Delay recommendation</p>
+                  <Clock3 className="h-4 w-4 text-slate-500" />
+                </div>
+                <p className="mt-3 text-lg font-semibold text-white">
+                  {demo ? formatDelay(demo.recommendedDelaySeconds, demo.recommendedDelayWindow) : 'Calculating...'}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {demo?.explanation ?? 'Evaluating live signals and current workload posture.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-slate-800/70 bg-slate-950/55">
+          <div className="mx-auto grid max-w-7xl gap-6 px-6 py-14 md:grid-cols-3">
+            <FeatureCard
+              eyebrow="The problem"
+              title="CI jobs are running in the wrong place at the wrong time."
+              body="Default regions are easy, not efficient. That leaves wasted spend, dirtier execution windows, and no proof that better decisions were available."
+            />
+            <FeatureCard
+              eyebrow="The shift"
+              title="We do not analyze compute. We control it."
+              body="Workflows ask CO2 Router, the engine evaluates region and timing, and the downstream executor runs with a defensible decision in hand."
+            />
+            <FeatureCard
+              eyebrow="The proof"
+              title="Every decision leaves an audit trail."
+              body="Baseline vs selected, source quality, confidence, and alternatives stay attached to the decision so operators can replay and explain outcomes later."
+            />
+          </div>
+        </section>
+
+        <section id="how" className="mx-auto max-w-7xl px-6 py-20">
+          <div className="max-w-3xl">
+            <p className="text-xs uppercase tracking-[0.24em] text-emerald-300">How it works</p>
+            <h2 className="mt-4 text-4xl font-semibold text-white">A deterministic decision layer in front of execution.</h2>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <FeaturePanel
-              eyebrow="Must-have layer"
-              title="Assurance + disclosure"
-              copy="Not just greener routing. Hourly exports, replay, confidence bands, and defensible provenance."
-            />
-            <FeaturePanel
-              eyebrow="Revenue layer"
-              title="DEKES activation"
-              copy="Lead generation and buyer-intelligence workloads can run through the same carbon routing command plane."
-            />
+          <div className="mt-12 grid gap-5 lg:grid-cols-5">
+            {[
+              'Workflow asks CO2 Router.',
+              'Signal fabric evaluates candidate regions and time windows.',
+              'Scoring engine balances carbon, cost, latency, and confidence.',
+              'Policy layer returns the best executable decision.',
+              'Decision proof is stored for replay, reporting, and assurance.',
+            ].map((step, index) => (
+              <div key={step} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Step {index + 1}</p>
+                <p className="mt-4 text-base leading-7 text-slate-200">{step}</p>
+              </div>
+            ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        <div className="rounded-[28px] border border-slate-800 bg-slate-950/60 p-6 xl:col-span-2">
-          <SectionHeader
-            eyebrow="What makes this hard to copy"
-            title="Three infrastructure layers, one operator surface."
-            body="Competitors typically stop at one signal or one recommendation. CO2 Router combines live routing, policy-safe assurance logic, and exportable decision history."
-          />
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <FeatureRail
-              title="Routing fabric"
-              body="Immediate route selection, reroutes, lease revalidation, and best-window evaluation."
-            />
-            <FeatureRail
-              title="Assurance layer"
-              body="Policy modes, disclosure exports, standards mapping, and conservative disagreement handling."
-            />
-            <FeatureRail
-              title="Signal governance"
-              body="Primary, validation, and fallback providers with explicit provenance on every decision."
-            />
-          </div>
-        </div>
+        <section id="demo" className="mx-auto max-w-7xl px-6 pb-20">
+          <div className="grid gap-8 lg:grid-cols-[0.78fr_1.22fr]">
+            <div className="rounded-[28px] border border-slate-800 bg-slate-950/65 p-6">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Live demo</p>
+              <h2 className="mt-4 text-3xl font-semibold text-white">Run the routing wedge against real logic.</h2>
+              <p className="mt-4 text-sm leading-7 text-slate-400">
+                This demo is powered by the actual routing engine. It compares a baseline region against the optimized decision and keeps the proof surface visible.
+              </p>
 
-        <div className="rounded-[28px] border border-slate-800 bg-slate-950/60 p-6">
-          <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Commercial model</p>
-          <h3 className="mt-3 font-[var(--font-display)] text-3xl font-semibold text-white">
-            Build for procurement, not curiosity.
-          </h3>
-          <div className="mt-6 space-y-4">
-            <PricingTile
-              tier="Starter"
-              price="$99"
-              detail="Routing, dashboard, and replay for teams validating carbon-aware operations."
+              <div className="mt-8 space-y-3">
+                {demoScenarios.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => setScenarioId(entry.id)}
+                    className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
+                      scenarioId === entry.id
+                        ? 'border-emerald-400/40 bg-emerald-400/10'
+                        : 'border-slate-800 bg-slate-900/70 hover:border-slate-700'
+                    }`}
+                  >
+                    <p className="font-semibold text-white">{entry.label}</p>
+                    <p className="mt-1 text-sm text-slate-400">{entry.summary}</p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">GitHub Action wedge</p>
+                <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 px-4 py-4 text-sm text-emerald-200">
+{`- name: Route with CO2 Router
+  uses: co2router/action@v1
+  with:
+    workload-type: ${scenario.id}
+    candidate-regions: ${scenario.candidateRegions.join(',')}`}
+                </pre>
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-slate-800 bg-slate-950/65 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Before / after</p>
+                  <h3 className="mt-3 text-2xl font-semibold text-white">{scenario.label}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDemoRunNonce((current) => current + 1)}
+                  className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {demoLoading && (
+                <div className="mt-12 rounded-2xl border border-slate-800 bg-slate-900/70 p-8 text-sm text-slate-400">
+                  Computing live routing decision...
+                </div>
+              )}
+
+              {demoError && (
+                <div className="mt-12 rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-sm text-red-300">
+                  {demoError}
+                </div>
+              )}
+
+              {demo && (
+                <div className="mt-8 space-y-6">
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <DemoCard
+                      title="Default"
+                      badge="baseline"
+                      region={demo.baselineRegion}
+                      carbon={demo.baselineCarbonIntensity}
+                      cost={demo.baselineEstimatedCost}
+                    />
+                    <DemoCard
+                      title="CO2 Router"
+                      badge="selected"
+                      region={demo.selectedRegion}
+                      carbon={demo.selectedCarbonIntensity}
+                      cost={demo.selectedEstimatedCost}
+                      highlighted
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <SummaryChip label="Carbon delta" value={`${demo.carbonSavingsPct.toFixed(1)}%`} />
+                    <SummaryChip label="Cost delta" value={`${demo.costSavingsPct.toFixed(1)}%`} />
+                    <SummaryChip label="Confidence" value={`${Math.round(demo.confidence * 100)}%`} />
+                    <SummaryChip label="Delay window" value={formatDelay(demo.recommendedDelaySeconds, demo.recommendedDelayWindow)} />
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-slate-400">Why this decision won</p>
+                      <span className="rounded-full border border-slate-700 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-300">
+                        {demo.providers.qualityTier}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-base leading-7 text-slate-200">{demo.explanation}</p>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-3">
+                      <ProviderFact label="Signal source" value={demo.providers.sourceUsed ?? 'unknown'} />
+                      <ProviderFact label="Validation" value={demo.providers.validationSource ?? 'none'} />
+                      <ProviderFact label="Fallback" value={demo.providers.fallbackUsed ? 'yes' : 'no'} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+                    <p className="text-sm text-slate-400">Alternatives considered</p>
+                    <div className="mt-4 space-y-3">
+                      {demo.alternatives.slice(0, 4).map((alternative) => (
+                        <div key={alternative.region} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-3">
+                          <div>
+                            <p className="font-medium text-white">{alternative.region}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {alternative.carbonIntensity.toFixed(0)} gCO2/kWh • {formatUsd(alternative.estimatedCost)}
+                            </p>
+                          </div>
+                          <span className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                            score {alternative.score.toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-6 pb-20">
+          <div className="grid gap-6 lg:grid-cols-3">
+            <FeatureCard
+              eyebrow="Trust"
+              title="Multi-provider intelligence"
+              body="Routing decisions are grounded in WattTime, GridStatus, EIA-backed telemetry, Ember baselines, and explicit source metadata."
             />
-            <PricingTile
-              tier="Growth"
-              price="$499"
-              detail="Assurance mode, disclosure exports, and multi-service orchestration."
+            <FeatureCard
+              eyebrow="Proof"
+              title="Replayable decisions"
+              body="Every decision keeps its baseline, selected region, confidence, and alternatives close so operators can prove that execution was better, not just different."
             />
-            <PricingTile
-              tier="Enterprise"
-              price="Custom"
-              detail="Private governance workflows, policy tuning, and dedicated deployment controls."
+            <FeatureCard
+              eyebrow="Control"
+              title="Policy-aware execution"
+              body="Optimize mode moves fast for operators. Assurance mode keeps the signal doctrine conservative when defensibility matters more than chasing the lowest number."
             />
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section id="pricing" className="mx-auto max-w-7xl px-6 pb-20">
+          <div className="max-w-3xl">
+            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Pricing</p>
+            <h2 className="mt-4 text-4xl font-semibold text-white">Start with CI. Expand into broader execution control.</h2>
+          </div>
+
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            {pricingTiers.map((tier) => (
+              <div key={tier.name} className="rounded-[28px] border border-slate-800 bg-slate-950/65 p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm uppercase tracking-[0.18em] text-slate-500">{tier.name}</p>
+                    <p className="mt-4 text-4xl font-semibold text-white">{tier.price}</p>
+                    <p className="mt-1 text-sm text-slate-400">per month</p>
+                  </div>
+                  <Cpu className="h-5 w-5 text-emerald-300" />
+                </div>
+                <p className="mt-5 text-sm leading-7 text-slate-400">{tier.blurb}</p>
+                <div className="mt-6 space-y-3">
+                  {tier.features.map((feature) => (
+                    <div key={feature} className="flex items-center gap-3 text-sm text-slate-200">
+                      <Check className="h-4 w-4 text-emerald-300" />
+                      <span>{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section id="github" className="border-t border-slate-800/70 bg-slate-950/70">
+          <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-20 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs uppercase tracking-[0.24em] text-emerald-300">GitHub Actions wedge</p>
+              <h2 className="mt-4 text-4xl font-semibold text-white">Start optimizing your compute in 5 minutes.</h2>
+              <p className="mt-4 text-lg leading-8 text-slate-300">
+                Call CO2 Router from a workflow, receive a real routing decision, and expose the result to the rest of the job. Cost reduction comes first. Carbon reduction ships with proof.
+              </p>
+            </div>
+            <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.45)]">
+              <pre className="overflow-x-auto text-sm text-emerald-200">
+{`- name: Route with CO2 Router
+  uses: co2router/action@v1
+  with:
+    engine-url: \${{ secrets.ECOBE_URL }}
+    api-key: \${{ secrets.ECOBE_INTERNAL_API_KEY }}
+    workload-id: ci-build
+    candidate-regions: eastus,northeurope,norwayeast`}
+              </pre>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   )
 }
 
-function SectionHeader({
+function HeroMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string
+  value: string
+  detail: string
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-3 text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p>
+    </div>
+  )
+}
+
+function FeatureCard({
   eyebrow,
   title,
   body,
@@ -577,129 +634,113 @@ function SectionHeader({
   body: string
 }) {
   return (
-    <div>
-      <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/80">{eyebrow}</p>
-      <h2 className="mt-3 font-[var(--font-display)] text-3xl font-semibold text-white md:text-4xl">
-        {title}
-      </h2>
-      <p className="mt-4 max-w-3xl text-base leading-8 text-slate-300">{body}</p>
-    </div>
-  )
-}
-
-function MetricPill({
-  label,
-  value,
-  tone,
-}: {
-  label: string
-  value: string
-  tone: 'emerald' | 'cyan' | 'blue' | 'amber'
-}) {
-  const toneClass = {
-    emerald: 'from-emerald-500/16 to-emerald-500/4 border-emerald-500/20 text-emerald-300',
-    cyan: 'from-cyan-500/16 to-cyan-500/4 border-cyan-500/20 text-cyan-300',
-    blue: 'from-blue-500/16 to-blue-500/4 border-blue-500/20 text-blue-300',
-    amber: 'from-amber-500/16 to-amber-500/4 border-amber-500/20 text-amber-200',
-  }
-
-  return (
-    <div className={`rounded-2xl border bg-gradient-to-br p-4 ${toneClass[tone]}`}>
-      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-white">{value}</p>
-    </div>
-  )
-}
-
-function FeatureMiniCard({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-      <p className="font-semibold text-white">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-400">{body}</p>
-    </div>
-  )
-}
-
-function CommandStrip({
-  title,
-  value,
-  detail,
-}: {
-  title: string
-  value: string
-  detail: string
-}) {
-  return (
-    <div className="rounded-[24px] border border-slate-800 bg-slate-950/60 p-5 hover-lift">
-      <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{title}</p>
-      <p className="mt-3 font-[var(--font-display)] text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-3 text-sm leading-6 text-slate-400">{detail}</p>
-    </div>
-  )
-}
-
-function DecisionMetric({
-  label,
-  value,
-  detail,
-}: {
-  label: string
-  value: string
-  detail: string
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-white">{value}</p>
-      <p className="mt-2 text-sm text-slate-400">{detail}</p>
-    </div>
-  )
-}
-
-function FeaturePanel({
-  eyebrow,
-  title,
-  copy,
-}: {
-  eyebrow: string
-  title: string
-  copy: string
-}) {
-  return (
-    <div className="rounded-[24px] border border-slate-800 bg-slate-950/60 p-5">
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950/60 p-6">
       <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{eyebrow}</p>
-      <p className="mt-3 font-[var(--font-display)] text-2xl font-semibold text-white">{title}</p>
-      <p className="mt-3 text-sm leading-7 text-slate-400">{copy}</p>
+      <h3 className="mt-4 text-2xl font-semibold text-white">{title}</h3>
+      <p className="mt-4 text-sm leading-7 text-slate-400">{body}</p>
     </div>
   )
 }
 
-function FeatureRail({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="rounded-[24px] border border-slate-800 bg-slate-950/70 p-5">
-      <div className="mb-4 h-1 w-16 rounded-full bg-gradient-to-r from-emerald-400 via-cyan-400 to-blue-400" />
-      <p className="font-semibold text-white">{title}</p>
-      <p className="mt-3 text-sm leading-7 text-slate-400">{body}</p>
-    </div>
-  )
-}
-
-function PricingTile({
-  tier,
-  price,
-  detail,
+function MetricPair({
+  label,
+  value,
 }: {
-  tier: string
-  price: string
-  detail: string
+  label: string
+  value: string
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-      <div className="flex items-center justify-between gap-4">
-        <p className="font-semibold text-white">{tier}</p>
-        <p className="font-[var(--font-display)] text-2xl font-semibold text-emerald-300">{price}</p>
+    <div className="rounded-xl border border-slate-800 bg-slate-950/65 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-3 text-lg font-semibold text-white">{value}</p>
+    </div>
+  )
+}
+
+function SignalCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string
+  icon: typeof Zap
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">{label}</p>
+        <Icon className="h-4 w-4 text-emerald-300" />
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-400">{detail}</p>
+      <p className="mt-4 text-2xl font-semibold text-white">{value}</p>
+    </div>
+  )
+}
+
+function DemoCard({
+  title,
+  badge,
+  region,
+  carbon,
+  cost,
+  highlighted = false,
+}: {
+  title: string
+  badge: string
+  region: string
+  carbon: number
+  cost: number
+  highlighted?: boolean
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-5 ${
+        highlighted
+          ? 'border-emerald-400/30 bg-emerald-400/10'
+          : 'border-slate-800 bg-slate-900/80'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-lg font-semibold text-white">{title}</p>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-300">
+          {badge}
+        </span>
+      </div>
+      <div className="mt-5 space-y-3">
+        <MetricPair label="Region" value={region} />
+        <MetricPair label="Carbon intensity" value={`${carbon.toFixed(0)} gCO2/kWh`} />
+        <MetricPair label="Estimated cost" value={formatUsd(cost)} />
+      </div>
+    </div>
+  )
+}
+
+function SummaryChip({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-3 text-xl font-semibold text-white">{value}</p>
+    </div>
+  )
+}
+
+function ProviderFact({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm font-medium text-white">{value}</p>
     </div>
   )
 }
