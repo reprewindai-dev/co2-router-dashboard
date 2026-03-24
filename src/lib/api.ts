@@ -20,9 +20,10 @@ import type {
   OpportunityResult,
   BestWindowRequest,
   BestWindowResult,
-  DekesIntegrationSummary,
+  DekesIntegrationSummaryResponse,
+  DekesIntegrationEventsResponse,
+  DekesIntegrationMetricsResponse,
   DekesHandoff,
-  DekesOrgRisk,
   GridHeroMetrics,
   GridSignalSummary,
   GridOpportunities,
@@ -432,15 +433,15 @@ export const ecobeApi = {
   // ── DEKES Integration ─────────────────────────────────────────────────────────
   // Read-only — handoffs are emitted by the ECOBE engine, never by the dashboard.
   // All routes resolve through the existing /api/ecobe proxy → ECOBE engine.
-  async getDekesIntegrationSummary(): Promise<DekesIntegrationSummary> {
-    const { data } = await api.get<DekesIntegrationSummary>('/integrations/dekes/summary')
+  async getDekesIntegrationSummary(): Promise<DekesIntegrationSummaryResponse> {
+    const { data } = await api.get<DekesIntegrationSummaryResponse>('/integrations/dekes/summary')
     return data
   },
 
   async getDekesIntegrationEvents(
     limit = 50
-  ): Promise<{ handoffs: DekesHandoff[] }> {
-    const { data } = await api.get<{ handoffs: DekesHandoff[] }>('/integrations/dekes/events', {
+  ): Promise<DekesIntegrationEventsResponse> {
+    const { data } = await api.get<DekesIntegrationEventsResponse>('/integrations/dekes/events', {
       params: { limit },
     })
     return data
@@ -451,8 +452,8 @@ export const ecobeApi = {
     return data
   },
 
-  async getDekesIntegrationMetrics(): Promise<{ orgRisks: DekesOrgRisk[] }> {
-    const { data } = await api.get<{ orgRisks: DekesOrgRisk[] }>('/integrations/dekes/metrics')
+  async getDekesIntegrationMetrics(): Promise<DekesIntegrationMetricsResponse> {
+    const { data } = await api.get<DekesIntegrationMetricsResponse>('/integrations/dekes/metrics')
     return data
   },
 

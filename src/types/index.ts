@@ -475,6 +475,55 @@ export interface DekesAnalytics {
   workloads: DekesWorkload[]
 }
 
+export interface DekesIntegrationSummaryResponse {
+  status: string
+  integration: string
+  lastSync: string
+  metrics: {
+    totalWorkloads: number
+    successfulWorkloads: number
+    successRate: number
+    totalCO2Kg: number
+    avgCO2PerWorkload: number
+    timeRange: string
+  }
+}
+
+export interface DekesIntegrationEvent {
+  id: string
+  timestamp: string
+  type: string
+  message: unknown
+  status: 'success' | 'error'
+}
+
+export interface DekesIntegrationEventsResponse {
+  source: string
+  timeRange: string
+  total: number
+  events: DekesIntegrationEvent[]
+}
+
+export interface DekesIntegrationMetricsResponse {
+  integration: string
+  status: string
+  timeRange: string
+  metrics: {
+    successRate: number
+    failureRate: number
+    totalEvents: number
+    totalWorkloads: number
+    avgResponseTimeMs: number
+    uptime: number
+  }
+  hourlyTrend: Array<{
+    hour: string
+    requestCount: number
+    avgCO2: number
+  }>
+  lastChecked: string
+}
+
 // ─── Legacy / Compat ──────────────────────────────────────────────────────────
 
 export interface CarbonForecast {
