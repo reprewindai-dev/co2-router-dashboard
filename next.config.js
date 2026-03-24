@@ -7,14 +7,6 @@ const nextConfig = {
   env: {
     ECOBE_API_URL: ECOBE_ENGINE_URL,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/ecobe/:path*',
-        destination: `${ECOBE_ENGINE_URL}/api/v1/:path*`,
-      },
-    ]
-  },
 }
 
 module.exports = nextConfig
