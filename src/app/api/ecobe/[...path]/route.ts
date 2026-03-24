@@ -10,7 +10,12 @@ function getEngineBaseUrl() {
 
 function shouldUseInternalKey(path: string[]) {
   const joined = path.join('/')
-  return joined.startsWith('disclosure/') || joined.startsWith('system/')
+  return (
+    joined === 'methodology' ||
+    joined.startsWith('methodology/') ||
+    joined.startsWith('disclosure/') ||
+    joined.startsWith('system/')
+  )
 }
 
 async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] }> }) {

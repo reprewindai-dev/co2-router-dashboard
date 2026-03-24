@@ -50,6 +50,67 @@ function isAxiosError(
   return typeof error === 'object' && error !== null && 'isAxiosError' in error
 }
 
+type CompactDashboardSavings = {
+  window?: '24h' | '7d' | '30d'
+  totalDecisions?: number
+  totalCO2SavedG?: number
+  totalCO2BaselineG?: number
+  totalCO2ActualG?: number
+  savingsPct?: number
+  savedEquivalents?: { kmDriven?: number; treeDays?: number; savedKg?: number }
+  byRegion?: Array<{ region: string; decisions: number; co2SavedG: number; co2BaselineG: number; savingsPct: number }>
+  trend?: Array<{ date: string; co2SavedG: number; co2BaselineG: number; decisions: number }>
+  co2AvoidedKg?: number
+  totalBaselineG?: number
+  totalChosenG?: number
+  totalAvoidedG?: number
+  reductionPct?: number
+  dailyTrend?: Array<{ date: string; baselineG: number; chosenG: number; avoidedG: number; decisions: number }>
+}
+
+function normalizeDashboardSavings(
+  payload: DashboardSavings | CompactDashboardSavings
+): DashboardSavings {
+  if ('savingsPct' in payload && typeof payload.savingsPct === 'number') {
+    return payload as DashboardSavings
+  }
+
+  const compact = payload as CompactDashboardSavings
+  const window = compact.window ?? '30d'
+  const windowHours = window === '24h' ? 24 : window === '7d' ? 168 : 720
+  const totalCO2SavedG = compact.totalCO2SavedG ?? compact.totalAvoidedG ?? 0
+  const totalCO2BaselineG = compact.totalCO2BaselineG ?? compact.totalBaselineG ?? 0
+  const totalCO2ActualG = compact.totalCO2ActualG ?? compact.totalChosenG ?? 0
+  const savingsPct =
+    compact.savingsPct ??
+    compact.reductionPct ??
+    (totalCO2BaselineG > 0 ? (totalCO2SavedG / totalCO2BaselineG) * 100 : 0)
+
+  return {
+    window,
+    windowHours,
+    totalDecisions: compact.totalDecisions ?? 0,
+    totalCO2SavedG,
+    totalCO2BaselineG,
+    totalCO2ActualG,
+    savingsPct,
+    savedEquivalents: {
+      kmDriven: compact.savedEquivalents?.kmDriven ?? Math.round((compact.co2AvoidedKg ?? totalCO2SavedG / 1000) * 4.1),
+      treeDays: compact.savedEquivalents?.treeDays ?? Math.round((compact.co2AvoidedKg ?? totalCO2SavedG / 1000) * 18),
+      savedKg: compact.savedEquivalents?.savedKg ?? totalCO2SavedG / 1000,
+    },
+    byRegion: compact.byRegion ?? [],
+    trend:
+      compact.trend ??
+      (compact.dailyTrend ?? []).map((entry) => ({
+        date: entry.date,
+        co2SavedG: entry.avoidedG,
+        co2BaselineG: entry.baselineG,
+        decisions: entry.decisions,
+      })),
+  }
+}
+
 // Normalize API errors into human-readable messages.
 // Extracts error.message / error.detail from ECOBE response body when available.
 api.interceptors.response.use(
@@ -181,8 +242,8 @@ export const ecobeApi = {
 
   async getDashboardSavings(window: '24h' | '7d' | '30d' = '24h'): Promise<DashboardSavings> {
     try {
-      const { data } = await api.get<DashboardSavings>('/dashboard/savings', { params: { window } })
-      return data
+      const { data } = await api.get('/dashboard/savings', { params: { window } })
+      return normalizeDashboardSavings(data)
     } catch (error) {
       console.error('Failed to fetch dashboard savings:', error)
       throw error
