@@ -74,7 +74,7 @@ const TABS: Array<{
     label: 'Activation',
     sub: 'DEKES · handoffs · risk',
     eyebrow: 'Business linkage',
-    summary: 'How carbon-aware routing connects to lead activation, handoffs, and downstream risk.',
+    summary: 'How carbon-aware routing connects to DEKES activation, decision-derived runtime signals, and downstream risk.',
   },
 ]
 

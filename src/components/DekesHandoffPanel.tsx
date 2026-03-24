@@ -53,7 +53,7 @@ export function DekesHandoffPanel() {
         <div>
           <h3 className="text-lg font-semibold text-white">DEKES Activation Feed</h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            Live integration events and throughput emitted by the CO2 Router engine.
+            Live activation signals derived from routed DEKES decisions and engine state.
           </p>
         </div>
       </div>

@@ -72,7 +72,7 @@ export function DekesStats() {
         <div>
           <h3 className="text-xl font-semibold text-white">DEKES Runtime Telemetry</h3>
           <p className="text-sm text-slate-400">
-            Live workload throughput, carbon intensity, and integration health from the engine.
+            Read-model telemetry built from live DEKES routing decisions and engine health.
           </p>
         </div>
         <div className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
@@ -90,7 +90,7 @@ export function DekesStats() {
         <MetricCard
           label="Success rate"
           value={`${summary.metrics.successRate}%`}
-          detail="Workloads completed and reported successfully."
+          detail="Routed DEKES workloads represented in the current decision window."
           icon={ShieldCheck}
         />
         <MetricCard

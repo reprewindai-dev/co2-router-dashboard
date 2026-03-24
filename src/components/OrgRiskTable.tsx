@@ -23,7 +23,7 @@ export function OrgRiskTable() {
         <div>
           <h3 className="text-lg font-semibold text-white">DEKES Operating Rhythm</h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            Hour-by-hour workload cadence and response efficiency coming from the live engine.
+            Hour-by-hour cadence derived from routed DEKES decisions.
           </p>
         </div>
       </div>

@@ -431,29 +431,35 @@ export const ecobeApi = {
   },
 
   // ── DEKES Integration ─────────────────────────────────────────────────────────
-  // Read-only — handoffs are emitted by the ECOBE engine, never by the dashboard.
-  // All routes resolve through the existing /api/ecobe proxy → ECOBE engine.
+  // Read-only dashboard activation surfaces are built from a dashboard-side
+  // read model derived from live ECOBE decisions and engine status.
   async getDekesIntegrationSummary(): Promise<DekesIntegrationSummaryResponse> {
-    const { data } = await api.get<DekesIntegrationSummaryResponse>('/integrations/dekes/summary')
+    const { data } = await api.get<DekesIntegrationSummaryResponse>('/dekes/runtime', {
+      params: { view: 'summary' },
+    })
     return data
   },
 
   async getDekesIntegrationEvents(
     limit = 50
   ): Promise<DekesIntegrationEventsResponse> {
-    const { data } = await api.get<DekesIntegrationEventsResponse>('/integrations/dekes/events', {
-      params: { limit },
+    const { data } = await api.get<DekesIntegrationEventsResponse>('/dekes/runtime', {
+      params: { view: 'events', limit },
     })
     return data
   },
 
   async getDekesHandoffById(handoffId: string): Promise<DekesHandoff> {
-    const { data } = await api.get<DekesHandoff>(`/integrations/dekes/events/${encodeURIComponent(handoffId)}`)
+    const { data } = await api.get<DekesHandoff>('/dekes/runtime', {
+      params: { view: 'handoff', handoffId },
+    })
     return data
   },
 
   async getDekesIntegrationMetrics(): Promise<DekesIntegrationMetricsResponse> {
-    const { data } = await api.get<DekesIntegrationMetricsResponse>('/integrations/dekes/metrics')
+    const { data } = await api.get<DekesIntegrationMetricsResponse>('/dekes/runtime', {
+      params: { view: 'metrics' },
+    })
     return data
   },
 
