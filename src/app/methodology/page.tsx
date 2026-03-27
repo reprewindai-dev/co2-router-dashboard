@@ -1,161 +1,122 @@
-'use client'
+import { getControlPlaneSnapshot } from '@/lib/ecobe'
 
-import { useQuery } from '@tanstack/react-query'
-import { ecobeApi } from '@/lib/api'
+const sections = [
+  {
+    title: 'Control plane vs data plane',
+    body: 'The engine authorizes workloads before execution. CI/CD and Kubernetes consume enforcement artifacts after the decision is made. The UI explains that doctrine; it does not perform authorization.',
+  },
+  {
+    title: 'Deterministic doctrine',
+    body: 'The engine resolves requests in fixed order: policy hard overrides, water guardrails, latency and SLA protection, carbon optimization inside the allowed envelope, then cost as a late tie-breaker.',
+  },
+  {
+    title: 'Lowest defensible signal',
+    body: 'When carbon providers disagree, the runtime path favors defensibility, freshness, and lineage instead of blindly choosing the lowest theoretical intensity number.',
+  },
+  {
+    title: 'MSS',
+    body: 'The mirrored signal stack is a versioned resilience layer. It tracks provider health, freshness, disagreement, last-known-good use, and snapshot lineage so replay and degraded behavior stay explainable.',
+  },
+  {
+    title: 'Water guardrails',
+    body: 'Water is not a cosmetic score. Basin authority, optional facility overlays, and fallback posture can trigger reroute, delay, throttle, or deny before execution.',
+  },
+  {
+    title: 'Proof and replay',
+    body: 'Every decision should answer what would have happened by default, what was selected instead, which signal and doctrine state were used, and whether degraded or fallback posture was involved.',
+  },
+  {
+    title: 'Universal adapter plane',
+    body: 'HTTP, CloudEvents, queue/job, Lambda, CI/CD, and Kubernetes support are all thin adapters around one canonical decision envelope and one canonical proof envelope. Adapters translate transport and control-point context; they do not score or decide.',
+  },
+  {
+    title: 'OpenTelemetry bridge',
+    body: 'Decision spans carry decision frame ID, action, reason code, operating mode, proof hash, fallback posture, runtime, region, and adapter metadata so downstream observability systems can correlate execution with authorization.',
+  },
+]
 
-export default function MethodologyPage() {
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['methodology-card'],
-    queryFn: () => ecobeApi.getMethodology(),
-  })
+export default async function MethodologyPage() {
+  const snapshot = await getControlPlaneSnapshot()
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-8">
-        <p className="text-xs uppercase tracking-[0.25em] text-emerald-400">Model Card</p>
-        <h2 className="mt-3 text-4xl font-semibold text-white">Ecobe Methodology</h2>
-        <p className="mt-4 max-w-3xl text-slate-400">
-          Carbon-aware routing built around live provider provenance, explicit fallback rules,
-          and the lowest defensible signal doctrine.
+    <div className="space-y-8 pb-10">
+      <section className="surface-card-strong p-8">
+        <div className="eyebrow">Methodology</div>
+        <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">How the control plane makes binding decisions.</h1>
+        <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
+          This page explains the live doctrine without exposing sensitive tuning. It separates runtime truth, degraded operation, and assurance posture so the public layer stays technically honest.
         </p>
       </section>
 
-      {isLoading && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-8 text-slate-400">
-          Loading methodology...
-        </div>
-      )}
+      <section className="grid gap-6 lg:grid-cols-2">
+        {sections.map((section) => (
+          <div key={section.title} className="surface-card p-6">
+            <div className="eyebrow">{section.title}</div>
+            <p className="mt-4 text-sm leading-7 text-slate-300">{section.body}</p>
+          </div>
+        ))}
+      </section>
 
-      {isError && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-red-300">
-          {error instanceof Error ? error.message : 'Failed to load methodology'}
-        </div>
-      )}
-
-      {data && (
-        <>
-          <section className="grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Doctrine</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">{data.doctrine.name}</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{data.doctrine.summary}</p>
-            </div>
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-amber-400">Operator Notice</p>
-              <p className="mt-3 text-sm leading-7 text-amber-100/85">
-                {data.doctrine.legalDisclaimer}
-              </p>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Scoring</p>
-                <h3 className="mt-2 text-2xl font-semibold text-white">Weight Model</h3>
+      <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <div className="surface-card p-6">
+          <div className="eyebrow">Live provider posture</div>
+          <div className="mt-5 grid gap-4">
+            {snapshot.methodologyProviders?.providers?.map((provider) => (
+              <div key={provider.name} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="font-semibold text-white">{provider.name}</div>
+                  <span className="pill border-white/10 bg-white/5 text-slate-200">{provider.status}</span>
+                </div>
+                <div className="mt-3 text-sm text-slate-400">
+                  Last latency: {provider.latencyMs !== null ? `${provider.latencyMs} ms` : 'n/a'}
+                </div>
               </div>
-              <p className="text-xs text-slate-500">Updated {data.lastUpdated}</p>
-            </div>
-            <p className="mt-3 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 font-mono text-xs text-emerald-300">
-              {data.scoring.formula}
+            )) ?? <div className="text-sm text-slate-400">Provider methodology data is currently unavailable.</div>}
+          </div>
+        </div>
+
+        <div className="surface-card p-6">
+          <div className="eyebrow">Assurance posture</div>
+          <div className="mt-5 space-y-4 text-sm leading-7 text-slate-300">
+            <p>
+              Operational health and assurance readiness are reported separately. A control plane can still function while source hashes remain unverified; it just cannot honestly claim full audit-grade source pinning yet.
             </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {Object.entries(data.scoring.defaultWeights).map(([key, value]) => (
-                <div key={key} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{key}</p>
-                  <p className="mt-2 text-2xl font-semibold text-white">
-                    {(value * 100).toFixed(0)}%
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
+            <p>
+              Current readiness: <span className="font-semibold text-white">{snapshot.health?.checks.assuranceReady ? 'assurance-ready' : 'operational only'}</span>
+            </p>
+            <p>
+              Unhashed datasets: {(snapshot.health?.assurance?.unhashedDatasets ?? []).join(', ') || 'none reported'}
+            </p>
+          </div>
+        </div>
+      </section>
 
-          <section className="grid gap-4 lg:grid-cols-[1fr,1fr]">
-            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-cyan-400">Assurance Mode</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">Disclosure-Ready Routing</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{data.assuranceMode.summary}</p>
-              <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
-                <p>Disagreement threshold: {data.assuranceMode.disagreementThresholdPct}%</p>
-                <p className="mt-2 font-mono text-xs text-cyan-300">{data.assuranceMode.exportPath}</p>
+      <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <div className="surface-card p-6">
+          <div className="eyebrow">Adapter control points</div>
+          <div className="mt-5 grid gap-4">
+            {snapshot.adapters?.adapters?.map((adapter) => (
+              <div key={adapter.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                <div className="font-semibold text-white">{adapter.runtime}</div>
+                <div className="mt-2 font-mono text-xs text-slate-400">{adapter.id}</div>
+                <div className="mt-3 text-sm text-slate-300">{adapter.controlPoints.join(', ')}</div>
               </div>
-            </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Policy Modes</p>
-              <div className="mt-4 space-y-3">
-                {data.policyModes.map((policy) => (
-                  <div key={policy.id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-white">{policy.name}</p>
-                      <span className="text-[11px] uppercase tracking-[0.18em] text-emerald-400">
-                        {policy.assuranceMode ? 'Assurance' : 'Optimize'}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">{policy.summary}</p>
-                    <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      Preferred signals: {policy.preferredSignalTypes.join(', ')}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
+            )) ?? <div className="text-sm text-slate-400">Adapter metadata is currently unavailable.</div>}
+          </div>
+        </div>
 
-          <section className="grid gap-4 lg:grid-cols-3">
-            {data.tiers.map((tier) => (
-              <div key={tier.id} className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-                <p className="text-xs uppercase tracking-[0.2em] text-emerald-400">{tier.name}</p>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{tier.purpose}</p>
-                <div className="mt-5 space-y-3">
-                  {tier.providers.map((provider) => (
-                    <div key={provider.name} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                      <p className="text-sm font-semibold text-white">{provider.name}</p>
-                      <p className="mt-1 text-xs text-slate-400">{provider.role}</p>
-                      <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                        {provider.coverage}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </section>
-
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Standards Mapping</p>
-            <div className="mt-4 overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-800 text-left text-sm text-slate-300">
-                <thead>
-                  <tr className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                    <th className="px-3 py-3">Framework</th>
-                    <th className="px-3 py-3">Ecobe Field</th>
-                    <th className="px-3 py-3">Standard Field</th>
-                    <th className="px-3 py-3">Notes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {data.standardsMapping.map((row) => (
-                    <tr key={`${row.framework}-${row.ecobeField}`}>
-                      <td className="px-3 py-3 text-white">{row.framework}</td>
-                      <td className="px-3 py-3 font-mono text-cyan-300">{row.ecobeField}</td>
-                      <td className="px-3 py-3">{row.standardField}</td>
-                      <td className="px-3 py-3 text-slate-400">{row.note}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Reference Markdown</p>
-            <pre className="mt-4 overflow-x-auto whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-950 p-5 text-sm leading-7 text-slate-300">
-              {data.markdown}
-            </pre>
-          </section>
-        </>
-      )}
+        <div className="surface-card p-6">
+          <div className="eyebrow">Water provenance reality</div>
+          <div className="mt-5 space-y-4 text-sm leading-7 text-slate-300">
+            <p>Verified datasets: <span className="font-semibold text-white">{snapshot.provenance?.summary.verified ?? 0}</span></p>
+            <p>Unverified datasets: <span className="font-semibold text-white">{snapshot.provenance?.summary.unverified ?? 0}</span></p>
+            <p>Missing local source files: <span className="font-semibold text-white">{snapshot.provenance?.summary.missingSource ?? 0}</span></p>
+            <p>
+              The control plane does not call itself audit-grade if local source files are missing or hashes remain unverified.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
