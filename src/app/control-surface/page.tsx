@@ -182,16 +182,18 @@ export default async function ControlSurfacePage() {
             )}
           </div>
 
-          <div className="surface-card p-6">
-            <div className="eyebrow">OTel bridge</div>
-            <div className="mt-5 space-y-4 text-sm text-slate-300">
-              <div>Export enabled: <span className="text-white">{snapshot.telemetry?.otel.enabled ? 'yes' : 'no'}</span></div>
-              <div>Service name: <span className="text-white">{snapshot.telemetry?.otel.serviceName ?? 'n/a'}</span></div>
-              <div>Metric series: <span className="text-white">{snapshot.telemetry?.metrics?.metrics.length ?? 0}</span></div>
-            </div>
+            {snapshot.telemetry?.otel.enabled ? (
+              <div className="surface-card p-6">
+                <div className="eyebrow">OTel bridge</div>
+                <div className="mt-5 space-y-4 text-sm text-slate-300">
+                  <div>Export enabled: <span className="text-white">yes</span></div>
+                  <div>Service name: <span className="text-white">{snapshot.telemetry?.otel.serviceName ?? 'n/a'}</span></div>
+                  <div>Metric series: <span className="text-white">{snapshot.telemetry?.metrics?.metrics.length ?? 0}</span></div>
+                </div>
+              </div>
+            ) : null}
           </div>
-        </div>
-      </section>
+        </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="surface-card p-6">
