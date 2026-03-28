@@ -102,9 +102,9 @@ export default function RootLayout({
             <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
               <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4 sm:px-6 lg:px-8">
                 <Link href="/" className="flex min-w-0 items-center gap-3">
-                  <BrandLogo variant="mark" className="h-12 w-12 shrink-0 drop-shadow-[0_0_24px_rgba(125,211,252,0.35)]" />
+                  <BrandLogo variant="full" className="h-12 w-auto shrink-0 drop-shadow-[0_0_28px_rgba(109,225,255,0.2)]" />
                   <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.38em] text-slate-400">CO2 Router / ECOBE</div>
+                    <div className="text-[11px] uppercase tracking-[0.38em] text-slate-400">Decision authority before execution</div>
                     <div className="truncate text-base font-semibold text-white">Environmental authorization control plane</div>
                   </div>
                 </Link>
@@ -187,7 +187,7 @@ export default function RootLayout({
               <div className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
                 <div className="grid gap-8 xl:grid-cols-[1.4fr_1fr_1fr_1fr]">
                   <div className="space-y-4">
-                    <BrandLogo variant="wordmark" className="h-12 w-auto drop-shadow-[0_0_28px_rgba(125,211,252,0.18)]" />
+                    <BrandLogo variant="full" className="h-16 w-auto drop-shadow-[0_0_30px_rgba(109,225,255,0.2)]" />
                     <p className="font-semibold uppercase tracking-[0.24em] text-slate-300">Decision authority before execution</p>
                     <p className="max-w-2xl leading-7 text-slate-400">
                       CO2 Router decides whether compute is allowed to run, where it should run, and under what environmental conditions, before execution happens. It is infrastructure governance software, not a reporting dashboard.

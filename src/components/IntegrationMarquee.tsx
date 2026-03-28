@@ -1,16 +1,24 @@
 'use client'
 
-const runtimeTiles = [
-  'AWS / Lambda',
-  'Kubernetes',
-  'Docker',
-  'GitHub Actions',
-  'Postgres',
-  'Redis',
-  'HTTP API',
-  'Webhooks',
-  'Queues / Jobs',
-  'CI / CD',
+import type { LucideIcon } from 'lucide-react'
+import { Boxes, Cloud, Database, GitBranch, Globe, Package2, Server, Webhook, Workflow, Clock3 } from 'lucide-react'
+
+type RuntimeTile = {
+  label: string
+  Icon: LucideIcon
+}
+
+const runtimeTiles: RuntimeTile[] = [
+  { label: 'AWS / Lambda', Icon: Cloud },
+  { label: 'Kubernetes', Icon: Boxes },
+  { label: 'Docker', Icon: Package2 },
+  { label: 'GitHub Actions', Icon: GitBranch },
+  { label: 'Postgres', Icon: Database },
+  { label: 'Redis', Icon: Server },
+  { label: 'HTTP API', Icon: Globe },
+  { label: 'Webhooks', Icon: Webhook },
+  { label: 'Queues / Jobs', Icon: Clock3 },
+  { label: 'CI / CD', Icon: Workflow },
 ]
 
 export function IntegrationMarquee() {
@@ -32,10 +40,13 @@ export function IntegrationMarquee() {
         <div className="marquee-track">
           {items.map((tile, index) => (
             <div
-              key={`${tile}-${index}`}
-              className="inline-flex min-w-[190px] items-center justify-center rounded-full border border-white/10 bg-slate-950/65 px-5 py-3 text-sm font-medium text-slate-100 shadow-[0_16px_40px_rgba(2,6,23,0.28)]"
+              key={`${tile.label}-${index}`}
+              className="integration-tile group inline-flex min-w-[178px] flex-col items-center justify-center gap-3 rounded-[1.6rem] border border-white/10 bg-slate-950/65 px-5 py-4 text-center shadow-[0_16px_40px_rgba(2,6,23,0.28)]"
             >
-              {tile}
+              <span className="integration-tile-icon inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-100 transition duration-300 group-hover:border-cyan-300/25 group-hover:text-white">
+                <tile.Icon className="h-5 w-5" />
+              </span>
+              <span className="text-sm font-medium text-slate-100">{tile.label}</span>
             </div>
           ))}
         </div>

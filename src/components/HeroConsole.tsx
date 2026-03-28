@@ -53,16 +53,16 @@ export function HeroConsole({ frames }: HeroConsoleProps) {
 
   return (
     <div className="hero-console surface-card-strong relative overflow-hidden p-6 shadow-[0_30px_120px_rgba(2,6,23,0.55)]">
-      <div className="pointer-events-none absolute inset-y-0 right-0 w-48 bg-[radial-gradient(circle_at_center,rgba(125,211,252,0.14),transparent_68%)]" />
-      <div className="pointer-events-none absolute bottom-4 right-4 opacity-[0.08]">
-        <BrandLogo variant="mark" className="h-28 w-28" alt="" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-48 bg-[radial-gradient(circle_at_center,rgba(109,225,255,0.18),transparent_68%)]" />
+      <div className="pointer-events-none absolute -bottom-10 right-0 opacity-[0.1]">
+        <BrandLogo variant="full" className="h-auto w-64" alt="" />
       </div>
-      <div className="pointer-events-none absolute left-0 top-0 h-full w-full bg-[linear-gradient(135deg,rgba(125,211,252,0.08),transparent_32%,transparent_68%,rgba(190,242,100,0.08))]" />
+      <div className="pointer-events-none absolute left-0 top-0 h-full w-full bg-[linear-gradient(135deg,rgba(109,225,255,0.08),transparent_32%,transparent_68%,rgba(195,255,145,0.1))]" />
 
       <div className="relative z-10">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <BrandLogo variant="mark" className="h-12 w-12 shrink-0" />
+            <BrandLogo variant="icon" className="h-12 w-auto shrink-0" />
             <div>
               <div className="eyebrow">CO2 Router Console</div>
               <div className="mt-1 text-xl font-semibold text-white">Live decision surface</div>

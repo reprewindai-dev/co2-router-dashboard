@@ -1,15 +1,15 @@
 type BrandLogoProps = {
-  variant?: 'mark' | 'wordmark'
+  variant?: 'full' | 'icon'
   className?: string
   alt?: string
 }
 
 export function BrandLogo({
-  variant = 'wordmark',
+  variant = 'full',
   className = '',
   alt = 'CO2 Router',
 }: BrandLogoProps) {
-  const src = variant === 'mark' ? '/co2router-mark.svg' : '/co2router-wordmark.svg'
+  const src = variant === 'icon' ? '/co2router-symbol.png' : '/co2router-logo.png'
 
-  return <img src={src} alt={alt} className={className} />
+  return <img src={src} alt={alt} className={className} decoding="async" draggable="false" />
 }

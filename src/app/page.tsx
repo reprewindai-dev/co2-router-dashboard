@@ -251,13 +251,16 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8 pb-12">
-      <section className="surface-card-strong overflow-hidden p-8 sm:p-10">
+      <section className="surface-card-strong relative overflow-hidden p-8 sm:p-10">
+        <div className="pointer-events-none absolute left-4 top-2 hidden opacity-[0.16] lg:block">
+          <BrandLogo variant="full" className="h-auto w-[28rem] max-w-none drop-shadow-[0_0_40px_rgba(109,225,255,0.12)]" alt="" />
+        </div>
         <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr] xl:items-center">
-          <div className="space-y-6">
+          <div className="relative z-10 space-y-6">
             <div className="eyebrow">Deterministic execution authority</div>
             <div className="space-y-4">
-              <div className="opacity-85">
-                <BrandLogo variant="wordmark" className="h-14 w-auto drop-shadow-[0_0_30px_rgba(125,211,252,0.28)]" />
+              <div className="opacity-95">
+                <BrandLogo variant="full" className="h-16 w-auto drop-shadow-[0_0_30px_rgba(109,225,255,0.22)]" />
               </div>
               <h1 className="max-w-4xl text-5xl font-semibold leading-tight text-white sm:text-6xl">
                 Control compute before it runs.
@@ -327,7 +330,10 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <div className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6">
+          <div className="relative rounded-[2rem] border border-white/10 bg-slate-950/70 p-6">
+            <div className="pointer-events-none absolute right-5 top-5 opacity-[0.16]">
+              <BrandLogo variant="icon" className="h-12 w-auto" alt="" />
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Workload</div>

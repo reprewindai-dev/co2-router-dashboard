@@ -49,7 +49,7 @@ export function DecisionFlowDiagram() {
         {flowCards.map((card, index) => (
           <div key={card.title} className="surface-card relative overflow-hidden p-5">
             <div className="pointer-events-none absolute right-4 top-4 opacity-[0.12]">
-              <BrandLogo variant="mark" className="h-10 w-10" alt="" />
+              <BrandLogo variant="icon" className="h-10 w-auto" alt="" />
             </div>
             <div className="eyebrow">Step {index + 1}</div>
             <div className="mt-3 text-xl font-semibold text-white">{card.title}</div>
