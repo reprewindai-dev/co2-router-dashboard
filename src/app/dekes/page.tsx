@@ -1,7 +1,5 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import DashboardPage from '../page'
-
-export default function DekesPage() {
-  return <DashboardPage />
+export default function DekesRedirectPage() {
+  redirect('/access')
 }

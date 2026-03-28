@@ -68,7 +68,11 @@ export default async function MethodologyPage() {
                   <span className="pill border-white/10 bg-white/5 text-slate-200">{provider.status}</span>
                 </div>
                 <div className="mt-3 text-sm text-slate-400">
-                  Last latency: {provider.latencyMs !== null ? `${provider.latencyMs} ms` : 'n/a'}
+                  {provider.latencyMs !== null
+                    ? `Last latency: ${provider.latencyMs} ms`
+                    : provider.lastSuccessAt
+                      ? `Last observed: ${new Date(provider.lastSuccessAt).toLocaleString()}`
+                      : 'Last observed: unavailable'}
                 </div>
               </div>
             )) ?? <div className="text-sm text-slate-400">Provider methodology data is currently unavailable.</div>}
@@ -79,7 +83,7 @@ export default async function MethodologyPage() {
           <div className="eyebrow">Assurance posture</div>
           <div className="mt-5 space-y-4 text-sm leading-7 text-slate-300">
             <p>
-              Operational health and assurance readiness are reported separately. A control plane can still function while source hashes remain unverified; it just cannot honestly claim full audit-grade source pinning yet.
+              Operational health and assurance readiness are reported separately. A control plane can still function while source hashes remain unverified; it just cannot honestly claim full source-pin assurance yet.
             </p>
             <p>
               Current readiness: <span className="font-semibold text-white">{snapshot.health?.checks.assuranceReady ? 'assurance-ready' : 'operational only'}</span>
@@ -112,7 +116,7 @@ export default async function MethodologyPage() {
             <p>Unverified datasets: <span className="font-semibold text-white">{snapshot.provenance?.summary.unverified ?? 0}</span></p>
             <p>Missing local source files: <span className="font-semibold text-white">{snapshot.provenance?.summary.missingSource ?? 0}</span></p>
             <p>
-              The control plane does not call itself audit-grade if local source files are missing or hashes remain unverified.
+              The control plane does not claim full assurance if local source files are missing or hashes remain unverified.
             </p>
           </div>
         </div>

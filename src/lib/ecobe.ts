@@ -1,5 +1,85 @@
 const DEFAULT_ENGINE_URL = 'http://localhost:3000'
 
+function titleCaseWords(value: string) {
+  return value
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function formatProviderName(name: string) {
+  const normalized = name.trim()
+  const aliases: Record<string, string> = {
+    EMBER: 'Ember',
+    EMBER_STRUCTURAL_BASELINE: 'Ember structural baseline',
+    WATTTIME_MOER: 'WattTime MOER',
+    EIA930: 'EIA-930',
+    ELECTRICITY_MAPS: 'Electricity Maps',
+    aqueduct: 'Aqueduct',
+    aware: 'AWARE',
+    nrel: 'NREL',
+    wwf: 'WWF Water Risk Filter',
+  }
+
+  return aliases[normalized] ?? titleCaseWords(normalized.replace(/-/g, ' '))
+}
+
+function inferSignalStatus(latestObservedAt: string | null): 'healthy' | 'degraded' | 'offline' {
+  if (!latestObservedAt) return 'offline'
+
+  const ageMs = Date.now() - Date.parse(latestObservedAt)
+  if (Number.isNaN(ageMs)) return 'offline'
+  if (ageMs <= 1000 * 60 * 60) return 'healthy'
+  if (ageMs <= 1000 * 60 * 60 * 24) return 'degraded'
+  return 'offline'
+}
+
+function buildMethodologyProviders(
+  providerTrust: ProviderTrust | null,
+  waterProviders: WaterProviders | null
+): MethodologyProviders {
+  const items = new Map<string, MethodologyProviders['providers'][number]>()
+
+  for (const [providerName, signals] of Object.entries(providerTrust?.providers ?? {})) {
+    const latest = [...signals]
+      .filter((signal) => signal.observedAt)
+      .sort((a, b) => Date.parse(b.observedAt ?? '') - Date.parse(a.observedAt ?? ''))[0]
+
+    items.set(providerName, {
+      name: formatProviderName(providerName),
+      status: inferSignalStatus(latest?.observedAt ?? null),
+      latencyMs: null,
+      lastSuccessAt: latest?.observedAt ?? null,
+      disagreementPct: null,
+    })
+  }
+
+  for (const provider of waterProviders?.providers ?? []) {
+    const rawName =
+      typeof provider.provider === 'string' && provider.provider.trim().length > 0
+        ? provider.provider
+        : 'water-source'
+    const authorityStatus =
+      typeof provider.authorityStatus === 'string' ? provider.authorityStatus.toLowerCase() : ''
+
+    items.set(`water:${rawName}`, {
+      name: formatProviderName(rawName),
+      status: authorityStatus === 'authoritative' ? 'healthy' : authorityStatus === 'fallback' ? 'degraded' : 'offline',
+      latencyMs: null,
+      lastSuccessAt:
+        typeof provider.lastObservedAt === 'string' && provider.lastObservedAt.length > 0
+          ? provider.lastObservedAt
+          : null,
+      disagreementPct: null,
+    })
+  }
+
+  return {
+    providers: Array.from(items.values()).sort((a, b) => a.name.localeCompare(b.name)),
+  }
+}
+
 function getEngineBaseUrl() {
   return (process.env.ECOBE_API_URL || process.env.NEXT_PUBLIC_ECOBE_API_URL || DEFAULT_ENGINE_URL).replace(/\/$/, '')
 }
@@ -282,7 +362,7 @@ export async function getControlPlaneSnapshot() {
     totalDecisions: decisions?.total ?? 0,
     providerTrust,
     waterProviders,
-    methodologyProviders,
+    methodologyProviders: methodologyProviders ?? buildMethodologyProviders(providerTrust, waterProviders),
     adapters,
     provenance,
     telemetry,

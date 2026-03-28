@@ -464,9 +464,9 @@ export default async function HomePage() {
               </p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-5">
-              <div className="eyebrow">Providers</div>
+              <div className="eyebrow">Signal sources</div>
               <div className="mt-3 text-2xl font-semibold text-white">{providerCount}</div>
-              <p className="mt-3 text-sm leading-7 text-slate-300">Provider posture is surfaced directly in methodology and control surfaces, including degraded states.</p>
+              <p className="mt-3 text-sm leading-7 text-slate-300">Carbon and water source posture is surfaced directly in methodology and control surfaces, including degraded states.</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-5">
               <div className="eyebrow">Replay / proof</div>
