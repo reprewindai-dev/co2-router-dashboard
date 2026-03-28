@@ -23,7 +23,7 @@ export default function PricingPage() {
         <div className="eyebrow">Pricing</div>
         <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">Charge for control, enforcement, and proof.</h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
-          CO₂ Router is sold as execution approval infrastructure. The commercial surface is tied to decisioning, enforcement, proof, and governance depth, not to a generic sustainability dashboard seat count.
+          CO2 Router is sold as execution approval infrastructure. The commercial surface is tied to decisioning, enforcement, proof, and governance depth, not to a generic sustainability dashboard seat count.
         </p>
       </section>
 
