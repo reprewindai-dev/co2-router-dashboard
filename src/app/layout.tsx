@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { IBM_Plex_Mono, Space_Grotesk } from 'next/font/google'
 
 import './globals.css'
+import { BrandLogo } from '@/components/BrandLogo'
 import { Providers } from './providers'
 
 const spaceGrotesk = Space_Grotesk({
@@ -101,9 +102,7 @@ export default function RootLayout({
             <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
               <div className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-5 py-4 sm:px-6 lg:px-8">
                 <Link href="/" className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 shadow-[0_0_40px_rgba(6,182,212,0.18)]">
-                    <span className="font-mono text-lg font-semibold text-cyan-100">CO2</span>
-                  </div>
+                  <BrandLogo variant="mark" className="h-12 w-12 shrink-0 drop-shadow-[0_0_24px_rgba(125,211,252,0.35)]" />
                   <div className="min-w-0">
                     <div className="text-[11px] uppercase tracking-[0.38em] text-slate-400">CO2 Router / ECOBE</div>
                     <div className="truncate text-base font-semibold text-white">Environmental authorization control plane</div>
@@ -188,6 +187,7 @@ export default function RootLayout({
               <div className="mx-auto max-w-7xl px-5 py-10 sm:px-6 lg:px-8">
                 <div className="grid gap-8 xl:grid-cols-[1.4fr_1fr_1fr_1fr]">
                   <div className="space-y-4">
+                    <BrandLogo variant="wordmark" className="h-12 w-auto drop-shadow-[0_0_28px_rgba(125,211,252,0.18)]" />
                     <p className="font-semibold uppercase tracking-[0.24em] text-slate-300">Decision authority before execution</p>
                     <p className="max-w-2xl leading-7 text-slate-400">
                       CO2 Router decides whether compute is allowed to run, where it should run, and under what environmental conditions, before execution happens. It is infrastructure governance software, not a reporting dashboard.

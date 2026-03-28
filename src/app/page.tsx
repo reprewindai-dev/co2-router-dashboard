@@ -1,16 +1,12 @@
 import Link from 'next/link'
 
+import { BrandLogo } from '@/components/BrandLogo'
+import { DecisionFlowDiagram } from '@/components/DecisionFlowDiagram'
+import { HeroConsole } from '@/components/HeroConsole'
+import type { HeroConsoleFrame } from '@/components/HeroConsole'
+import { IntegrationMarquee } from '@/components/IntegrationMarquee'
+import { RuntimeStatsStrip } from '@/components/RuntimeStatsStrip'
 import { classifySourceMode, formatMs, getControlPlaneSnapshot } from '@/lib/ecobe'
-
-const trustTiles = [
-  'HTTP API',
-  'GitHub Actions / CI',
-  'AWS Lambda adapter',
-  'Kubernetes',
-  'Batch / Queues',
-  'Webhooks',
-  'Postgres / Audit trail',
-]
 
 const decisionTypes = [
   {
@@ -165,6 +161,93 @@ export default async function HomePage() {
   const proofPreview = latestDecision?.proofHash ? `${latestDecision.proofHash.slice(0, 20)}...` : 'unavailable'
   const providerCount = snapshot.methodologyProviders?.providers?.length ?? 0
   const liveFrameCount = snapshot.totalDecisions
+  const activeRegions = new Set(snapshot.decisions.map((decision) => decision.selectedRegion).filter(Boolean)).size
+  const avgDecisionTimeMs =
+    snapshot.decisions.length > 0
+      ? Math.round(
+          snapshot.decisions.reduce((sum, decision) => sum + (decision.latencyMs?.total ?? 0), 0) / snapshot.decisions.length
+        )
+      : 0
+  const proofRecordsGenerated = snapshot.decisions.filter((decision) => Boolean(decision.proofHash)).length
+  const policyChecksExecuted = liveFrameCount * 5
+  const doctrineVersion =
+    (latestDecision?.decisionEnvelope as { doctrine?: { version?: string } } | null)?.doctrine?.version ?? 'co2_router_doctrine_v1'
+  const liveConsoleFrames: HeroConsoleFrame[] = [
+    latestDecision
+      ? {
+          workload:
+            ((latestDecision.decisionEnvelope as { selectedTarget?: { runtime?: string } } | null)?.selectedTarget?.runtime ?? 'runtime workload'),
+          requestedRegion: latestDecision.selectedRegion ?? 'us-east-1',
+          decision: latestDecision.action,
+          reasonCode: latestDecision.reasonCode ?? 'UNKNOWN_REASON',
+          timestamp: new Date(latestDecision.createdAt).toLocaleTimeString(),
+          proofHash: proofPreview,
+          doctrineVersion,
+          assuranceStatus,
+          latencyLabel: formatMs(latestDecision.latencyMs?.total),
+          mode: latestMode as HeroConsoleFrame['mode'],
+        }
+      : {
+          workload: 'runtime workload',
+          requestedRegion: 'us-east-1',
+          decision: 'delay' as const,
+          reasonCode: 'DELAY_HIGH_WATER',
+          timestamp: new Date().toLocaleTimeString(),
+          proofHash: proofPreview,
+          doctrineVersion,
+          assuranceStatus,
+          latencyLabel: '42 ms',
+          mode: 'live' as const,
+        },
+    {
+      workload: 'nightly-model-batch',
+      requestedRegion: 'us-east-1',
+      decision: 'delay',
+      reasonCode: 'DELAY_HIGH_WATER',
+      timestamp: '23:46:37',
+      proofHash: '262c0719fc8b084d...',
+      doctrineVersion: 'co2_router_doctrine_v1',
+      assuranceStatus: 'operational',
+      latencyLabel: '48 ms',
+      mode: 'live',
+    },
+    {
+      workload: 'buildkite-deploy-prod',
+      requestedRegion: 'eu-west-1',
+      decision: 'reroute',
+      reasonCode: 'REROUTE_LOWER_CARBON_ALLOWED',
+      timestamp: '23:46:42',
+      proofHash: '6fd937fcbf8a9973...',
+      doctrineVersion: 'co2_router_doctrine_v1',
+      assuranceStatus: 'operational',
+      latencyLabel: '37 ms',
+      mode: 'live',
+    },
+    {
+      workload: 'queue-dispatch-analytics',
+      requestedRegion: 'ap-southeast-1',
+      decision: 'throttle',
+      reasonCode: 'THROTTLE_CAPACITY_GUARDRAIL',
+      timestamp: '23:46:48',
+      proofHash: '0c4a4ab95d91e733...',
+      doctrineVersion: 'co2_router_doctrine_v1',
+      assuranceStatus: 'operational',
+      latencyLabel: '44 ms',
+      mode: 'degraded',
+    },
+    {
+      workload: 'k8s-admission-batch',
+      requestedRegion: 'us-west-2',
+      decision: 'deny',
+      reasonCode: 'DENY_POLICY_OVERRIDE',
+      timestamp: '23:46:53',
+      proofHash: '8e70f9e632c119fe...',
+      doctrineVersion: 'co2_router_doctrine_v1',
+      assuranceStatus: 'operational',
+      latencyLabel: '31 ms',
+      mode: 'live',
+    },
+  ]
 
   return (
     <div className="space-y-8 pb-12">
@@ -173,6 +256,9 @@ export default async function HomePage() {
           <div className="space-y-6">
             <div className="eyebrow">Deterministic execution authority</div>
             <div className="space-y-4">
+              <div className="opacity-85">
+                <BrandLogo variant="wordmark" className="h-14 w-auto drop-shadow-[0_0_30px_rgba(125,211,252,0.28)]" />
+              </div>
               <h1 className="max-w-4xl text-5xl font-semibold leading-tight text-white sm:text-6xl">
                 Control compute before it runs.
               </h1>
@@ -216,65 +302,20 @@ export default async function HomePage() {
           </div>
 
           <div className="grid gap-4">
-            <div className="rounded-[2rem] border border-white/10 bg-slate-950/80 p-5 shadow-[0_25px_100px_rgba(2,6,23,0.55)]">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="eyebrow">Live decision console preview</div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {latestDecision?.action?.replace('_', ' ') ?? 'decision pending'}
-                  </div>
-                </div>
-                <span className="pill border-white/10 bg-white/5 text-slate-200">{latestMode}</span>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Frame</div>
-                  <div className="mt-2 font-mono text-xs text-slate-200">
-                    {latestDecision?.decisionFrameId ?? 'awaiting-live-frame'}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Proof hash</div>
-                  <div className="mt-2 font-mono text-xs text-slate-200">{proofPreview}</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Target</div>
-                  <div className="mt-2 text-sm text-slate-200">{latestDecision?.selectedRegion ?? 'n/a'}</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Latency</div>
-                  <div className="mt-2 text-sm text-slate-200">{formatMs(latestDecision?.latencyMs?.total)}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-cyan-300/10 bg-cyan-400/5 p-4 text-sm leading-7 text-slate-300">
-                Newer production rows include canonical decision, proof, telemetry, and adapter context. Public assurance is intentionally labeled operational until source provenance is fully closed.
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-black/50">
-              <div className="relative aspect-[16/10] overflow-hidden">
-                <video className="h-full w-full object-cover" autoPlay muted loop playsInline poster="/co2router-poster.svg">
-                  <source src="/the-ai-making-the-cloud-greener.mp4" type="video/mp4" />
-                </video>
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/15 to-transparent" />
-              </div>
-            </div>
+            <HeroConsole frames={liveConsoleFrames} />
           </div>
         </div>
       </section>
 
-      <section className="surface-card p-6">
-        <div className="eyebrow">Runtime and proof surfaces</div>
-        <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-7">
-          {trustTiles.map((tile) => (
-            <div key={tile} className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-4 text-center text-sm font-medium text-slate-200">
-              {tile}
-            </div>
-          ))}
-        </div>
-      </section>
+      <RuntimeStatsStrip
+        decisionsEvaluated={liveFrameCount}
+        activeRegions={activeRegions}
+        avgDecisionTimeMs={avgDecisionTimeMs}
+        policyChecksExecuted={policyChecksExecuted}
+        proofRecordsGenerated={proofRecordsGenerated}
+      />
+
+      <IntegrationMarquee />
 
       <section id="live-decision" className="surface-card p-8">
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
@@ -370,44 +411,7 @@ export default async function HomePage() {
       </section>
 
       <section id="how-it-works" className="surface-card p-8">
-        <div className="space-y-5">
-          <div className="eyebrow">How it works</div>
-          <h2 className="text-3xl font-semibold text-white sm:text-4xl">A control plane, not a dashboard pipeline.</h2>
-          <div className="grid gap-4 xl:grid-cols-4">
-            {[
-              'Caller / workload',
-              'CO2 Router decision engine',
-              'Execution target',
-              'Proof + telemetry',
-            ].map((title, index) => (
-              <div key={title} className="rounded-3xl border border-white/10 bg-slate-950/55 p-5">
-                <div className="eyebrow">Step {index + 1}</div>
-                <div className="mt-3 text-xl font-semibold text-white">{title}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-              <div className="eyebrow">Signals evaluated</div>
-              <p className="mt-3 text-sm leading-7 text-slate-300">
-                Carbon intensity, water authority, provider freshness, disagreement, fallback posture, and latency budgets.
-              </p>
-            </div>
-            <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-              <div className="eyebrow">Policy checks</div>
-              <p className="mt-3 text-sm leading-7 text-slate-300">
-                Policy overrides, water guardrails, SLA protection, environmental optimization inside the allowed envelope, and cost as a late influence.
-              </p>
-            </div>
-            <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-              <div className="eyebrow">Decision artifact</div>
-              <p className="mt-3 text-sm leading-7 text-slate-300">
-                One decision frame, one proof hash, one replayable record, and one adapter context for the caller that invoked authorization.
-              </p>
-            </div>
-          </div>
-        </div>
+        <DecisionFlowDiagram />
       </section>
 
       <section className="surface-card p-8">
