@@ -334,7 +334,7 @@ export const ecobeApi = {
   // ── Provider Health ───────────────────────────────────────────────────────────
   async getProviderHealth(): Promise<MethodologyProviders> {
     try {
-      const { data } = await api.get<MethodologyProviders>('/methodology/providers')
+      const { data } = await api.get<MethodologyProviders>('/dashboard/methodology/providers')
       return data
     } catch (error) {
       console.error('Failed to fetch provider health:', error)

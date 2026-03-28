@@ -339,7 +339,7 @@ export async function getControlPlaneSnapshot() {
     fetchEngineJson<{ decisions: CiDecision[]; total: number }>('/ci/decisions?limit=8'),
     fetchEngineJson<ProviderTrust>('/dashboard/provider-trust'),
     fetchEngineJson<WaterProviders>('/water/providers'),
-    fetchEngineJson<MethodologyProviders>('/methodology/providers'),
+    fetchEngineJson<MethodologyProviders>('/dashboard/methodology/providers'),
     fetchEngineJson<AdapterSpec>('/adapters/spec'),
     fetchEngineJson<WaterProvenance>('/water/provenance'),
     fetchEngineJson<TelemetryBridgeSnapshot>('/ci/telemetry'),
