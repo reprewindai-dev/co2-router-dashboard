@@ -524,6 +524,22 @@ export const ecobeApi = {
     return data
   },
 
+  // ── CI Routing ──────────────────────────────────────────────────────────────
+  async getCIRoutingHealth() {
+    const { data } = await api.get('/health')
+    return data
+  },
+
+  async getCIAvailableRegions() {
+    const { data } = await api.get('/intelligence/grid/summary')
+    return data?.regions ?? []
+  },
+
+  async getCIDecisions(limit = 20) {
+    const { data } = await api.get<{ decisions: DashboardDecision[] }>(`/decisions?limit=${limit}`)
+    return data?.decisions ?? []
+  },
+
   // ── Health ────────────────────────────────────────────────────────────────────
   async health() {
     const { data } = await api.get('/health')

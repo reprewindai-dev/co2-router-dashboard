@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
+import { CommandCenterShell } from '@/components/command-center/CommandCenterShell'
 
-export default function ConsoleRedirectPage() {
-  redirect('/control-surface')
+export default function ConsolePage() {
+  return <CommandCenterShell />
 }

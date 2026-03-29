@@ -1,27 +1,31 @@
-import { LegalDocument } from '@/components/LegalDocument'
+import { LegalPageShell } from '@/components/legal/LegalPageShell'
 
 export default function PrivacyPage() {
   return (
-    <LegalDocument
-      title="Privacy Policy"
-      summary="This policy describes how operational metadata, decision traces, and support interactions are handled within the CO₂ Router surface."
+    <LegalPageShell
+      eyebrow="Privacy policy"
+      title="Privacy for a proof-backed control plane."
+      summary="CO2 Router stores the minimum operational data needed to route workloads, generate proof, support replay, and maintain service integrity. This page describes the practical handling of request metadata, decision evidence, and support information."
       sections={[
         {
-          heading: 'Operational metadata',
+          heading: 'What we collect',
           body: [
-            'The service may process preferred regions, workload criticality, scheduler hints, and related routing metadata required to authorize execution and generate proof.',
+            'We collect account information, integration metadata, workload routing inputs, proof artifacts, decision outcomes, and operational telemetry required to run the service. This can include organization identifiers, candidate regions, workload class, timing constraints, routing outcomes, and decision timestamps.',
+            'We also process support and contact submissions so we can respond to customer requests, provision environments, and manage billing or incident follow-up.',
           ],
         },
         {
-          heading: 'Proof records',
+          heading: 'How data is used',
           body: [
-            'Decision records, hashes, lineage, and evidence references may be retained to support replay, product operation, customer support, and compliance workflows.',
+            'Data is used to operate the control plane, enforce routing decisions, generate replayable proof, monitor latency and degraded states, and provide customer support. We also use service telemetry to improve resilience, detect failures, and maintain secure operation.',
+            'We do not treat proof records as marketing artifacts. They are operational evidence and are retained because they are part of the product contract.',
           ],
         },
         {
-          heading: 'Access control',
+          heading: 'Retention and disclosure',
           body: [
-            'Internal replay and certain proof endpoints require internal service credentials. Access is limited to authorized personnel and properly configured integrations.',
+            'Operational records are retained for as long as needed to provide service continuity, replay, audit support, dispute resolution, and legal compliance. Retention windows may vary by customer plan or explicit agreement.',
+            'We disclose information only to service providers or legal authorities when required to run the platform, comply with law, protect rights, or respond to verified incidents. We do not sell customer operational data.',
           ],
         },
       ]}

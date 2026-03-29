@@ -221,6 +221,14 @@ export interface DashboardMetrics {
     } | null
   } | null
   executionIntegrity?: ExecutionIntegrity | null
+  electricityMaps?: {
+    successRate: number | null
+    successCount: number
+    failureCount: number
+    lastSuccessAt: string | null
+    lastFailureAt: string | null
+    lastError: string | null
+  } | null
 }
 
 // ─── Dashboard Savings ────────────────────────────────────────────────────────
@@ -585,6 +593,8 @@ export interface GridSignalSummaryRegion {
   carbonIntensity?: number | null
   source?: string | null
   balancingAuthority: string | null
+  carbonIntensity: number | null
+  source: string | null
   demandRampPct: number | null
   renewableRatio: number | null
   fossilRatio: number | null
