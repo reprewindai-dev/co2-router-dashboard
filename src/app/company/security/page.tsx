@@ -1,14 +1,24 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { InformationPageShell } from '@/components/site/InformationPageShell'
+import { createPageMetadata } from '@/lib/seo'
 import { legalResourceLinks } from '@/lib/site-navigation'
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Security',
+  description:
+    'Public security posture for CO2 Router: protected internal routes, controlled proof surfaces, and clear disclosure paths for a system that sits before execution.',
+  path: '/company/security',
+  keywords: ['security posture', 'protected trace routes', 'security disclosure'],
+})
 
 export default function CompanySecurityPage() {
   return (
     <InformationPageShell
       eyebrow="Company / Security"
       title="Security posture for a control plane that sits before execution."
-      summary="The public security statement stays limited to what the product actually does today: protect internal trace and replay routes, keep legal controls accessible, and expose contact paths for support and disclosure."
+      summary="CO2 Router treats security as operating discipline around execution authority: protected internal routes, controlled proof surfaces, separated contact paths, and truthful public posture without invented certifications."
       secondaryHref="/contact"
       secondaryLabel="Contact Security"
     >
@@ -17,7 +27,7 @@ export default function CompanySecurityPage() {
           <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Operational posture</div>
           <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300">
             <p>Internal trace and replay routes are protected behind service authentication rather than exposed as anonymous public endpoints.</p>
-            <p>Proof, provenance, and live latency views shown on the site are composed from the engine without changing backend contracts.</p>
+            <p>Proof, provenance, and live latency views shown on the site are composed from the engine without loosening backend contracts.</p>
             <p>Security issues, support issues, and legal obligations each have separate public contact paths.</p>
           </div>
         </article>

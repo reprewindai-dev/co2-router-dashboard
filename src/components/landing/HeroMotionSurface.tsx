@@ -24,7 +24,7 @@ export function HeroMotionSurface({
   const actionMeta = liveDecision ? formatAction(liveDecision.action) : null
 
   return (
-    <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.18),transparent_38%),linear-gradient(180deg,rgba(5,10,20,0.96),rgba(2,8,18,0.98))] px-6 py-8 shadow-[0_25px_120px_rgba(0,0,0,0.45)] sm:px-10 sm:py-10 lg:px-12 lg:py-12">
+    <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.16),transparent_38%),linear-gradient(180deg,rgba(5,10,20,0.98),rgba(2,8,18,1))] px-6 py-10 shadow-[0_25px_120px_rgba(0,0,0,0.45)] sm:px-10 sm:py-12 lg:px-12 lg:py-14">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(91,192,255,0.07)_1px,transparent_1px),linear-gradient(90deg,rgba(91,192,255,0.07)_1px,transparent_1px)] bg-[size:72px_72px] opacity-40" />
         <motion.div
@@ -56,13 +56,10 @@ export function HeroMotionSurface({
         />
       </div>
 
-      <div className="relative grid gap-10 lg:grid-cols-[1.2fr_0.9fr] lg:items-end">
+      <div className="relative grid gap-10 lg:grid-cols-[1.18fr_0.82fr] lg:items-end">
         <div className="max-w-3xl">
           <div className="mb-6 flex flex-wrap items-center gap-3">
-            <div className="rounded-full border border-emerald-400/20 bg-emerald-400/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-300">
-              Live decision theater
-            </div>
-            <CO2RouterLogo size="sm" />
+            <CO2RouterLogo size="lg" orientation="lockup" />
           </div>
           <motion.h1
             initial={{ opacity: 0, y: 12 }}
@@ -70,15 +67,12 @@ export function HeroMotionSurface({
             transition={{ duration: 0.6 }}
             className="max-w-4xl text-5xl font-black leading-[0.94] tracking-[-0.06em] text-white sm:text-6xl lg:text-7xl"
           >
-            The Internet Should Decide Where It Runs.
-            <span className="mt-2 block bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 bg-clip-text text-transparent">
-              Now It Does.
-            </span>
+            Authorize compute before it runs.
           </motion.h1>
           <p className="mt-6 max-w-3xl text-base leading-8 text-slate-300 sm:text-lg">
-            CO2 Router is a deterministic compute control plane that enforces where and when
-            workloads execute using carbon, water, cost, and policy constraints, with audit-grade
-            proof attached to every decision.
+            CO2 Router is the pre-execution enforcement layer that co-evaluates carbon, water,
+            latency, cost, and policy in real time, then returns one binding action tied to a
+            decision frame that can be inspected later.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -93,99 +87,48 @@ export function HeroMotionSurface({
             >
               Read Methodology
             </Link>
-            <a
-              href="#live-decision"
-              className="rounded-2xl border border-white/12 bg-white/5 px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:border-cyan-300/40 hover:bg-cyan-300/8"
-            >
-              Watch Live Decisions
-            </a>
           </div>
         </div>
 
-        <div className="grid gap-4">
-          <div className="rounded-[28px] border border-white/10 bg-slate-950/65 p-5 shadow-[0_18px_80px_rgba(0,0,0,0.32)] backdrop-blur">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
-                Incoming job
-              </span>
-              <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                pre-execution
-              </span>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-                <div className="text-sm font-semibold text-white">
-                  {liveDecision?.workloadLabel ?? 'CI execution frame'}
-                </div>
-                <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-                  <span>baseline</span>
-                  <span className="rounded-full bg-white/6 px-2 py-1 text-slate-200">
-                    {liveDecision?.baselineCarbonIntensity ?? '--'} gCO2/kWh
-                  </span>
-                  <span className="rounded-full bg-white/6 px-2 py-1 text-slate-200">
-                    {liveDecision?.waterStressIndex?.toFixed(1) ?? '--'} stress
-                  </span>
-                </div>
-              </div>
-              <motion.div
-                className="flex items-center justify-center"
-                animate={{ y: [0, 4, 0] }}
-                transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+        <div className="rounded-[28px] border border-white/10 bg-slate-950/70 p-6 shadow-[0_18px_80px_rgba(0,0,0,0.32)] backdrop-blur">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[11px] uppercase tracking-[0.28em] text-slate-400">
+              Decision card
+            </span>
+            {actionMeta && (
+              <span
+                className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${actionMeta.badge}`}
               >
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.24em] text-slate-300">
-                  decision engine
-                </div>
-              </motion.div>
-              <div className="rounded-2xl border border-white/8 bg-gradient-to-br from-white/8 to-transparent p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-                      enforced outcome
-                    </div>
-                    <div className="mt-2 text-xl font-bold text-white">
-                      {actionMeta?.label ?? 'Run Now'}
-                    </div>
-                  </div>
-                  {actionMeta && (
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${actionMeta.badge}`}>
-                      {actionMeta.label}
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
-                  <span className="rounded-full bg-white/6 px-2 py-1">
-                    {liveDecision?.selectedRegion ?? 'us-east1'}
-                  </span>
-                  <span className="rounded-full bg-white/6 px-2 py-1">
-                    {(liveDecision?.carbonReductionPct ?? 0).toFixed(1)}% carbon delta
-                  </span>
-                  <span className="rounded-full bg-white/6 px-2 py-1">
-                    {(liveDecision?.signalConfidence ?? 0).toFixed(2)} confidence
-                  </span>
-                  <span className="rounded-full bg-white/6 px-2 py-1">
-                    {liveDecision?.latencyMs?.total?.toFixed(0) ?? '--'} ms
-                  </span>
-                </div>
-              </div>
-            </div>
+                {actionMeta.label}
+              </span>
+            )}
           </div>
-
-          <div className="flex flex-wrap gap-3">
-            {[
-              { label: 'Authority', value: 'binding actions' },
-              { label: 'Proof', value: 'hash + replay' },
-              { label: 'Signals', value: 'carbon + water' },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="min-w-[150px] flex-1 rounded-2xl border border-white/8 bg-white/4 px-4 py-3 backdrop-blur"
-              >
-                <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
-                  {item.label}
-                </div>
-                <div className="mt-2 text-sm font-semibold text-white">{item.value}</div>
+          <div className="mt-5 space-y-4">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Action</div>
+              <div className="mt-2 text-2xl font-bold text-white">
+                {actionMeta?.label ?? 'Run now'}
               </div>
-            ))}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Region</div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {liveDecision?.selectedRegion ?? 'us-east1'}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  Carbon delta
+                </div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {(liveDecision?.carbonReductionPct ?? 0).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            <div className="text-sm leading-7 text-slate-300">
+              One decision frame, one selected region, and one binding action before execution.
+            </div>
           </div>
         </div>
       </div>

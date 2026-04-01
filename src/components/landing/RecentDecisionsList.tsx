@@ -6,7 +6,7 @@ import type { LiveSystemSnapshot } from '@/types/control-surface'
 function compactHash(value: string | null) {
   if (!value) return 'unavailable'
   if (value.length <= 18) return value
-  return `${value.slice(0, 10)}…${value.slice(-6)}`
+  return `${value.slice(0, 10)}...${value.slice(-6)}`
 }
 
 export function RecentDecisionsList({
@@ -43,19 +43,25 @@ export function RecentDecisionsList({
               <div className="mt-3 text-sm leading-7 text-slate-300">
                 {humanizeReasonCode(decision.reasonCode)}
               </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
-                  frame {decision.decisionFrameId.slice(0, 8)}
-                </span>
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
-                  proof {compactHash(decision.proofHash)}
-                </span>
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
-                  trace {decision.traceAvailable ? 'available' : 'missing'}
-                </span>
-                <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1">
-                  governance {decision.governanceSource ?? 'NONE'}
-                </span>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {[
+                  ['frame', decision.decisionFrameId.slice(0, 8)],
+                  ['proof', compactHash(decision.proofHash)],
+                  ['trace', decision.traceAvailable ? 'available' : 'missing'],
+                  ['governance', decision.governanceSource ?? 'NONE'],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2"
+                  >
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                      {label}
+                    </div>
+                    <div className="mt-1 font-mono text-[11px] tracking-[0.08em] text-slate-400">
+                      {value}
+                    </div>
+                  </div>
+                ))}
               </div>
             </article>
           ))}

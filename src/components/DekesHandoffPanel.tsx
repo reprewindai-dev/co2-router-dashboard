@@ -36,7 +36,7 @@ export function DekesHandoffPanel() {
   const isLoading = summaryQ.isLoading || eventsQ.isLoading
   const isError = summaryQ.isError && eventsQ.isError
   const summary = summaryQ.data
-  const events = eventsQ.data?.events ?? []
+  const events = useMemo(() => eventsQ.data?.events ?? [], [eventsQ.data?.events])
 
   const chartData = useMemo(() => {
     const grouped = new Map<string, number>()

@@ -1,9 +1,24 @@
+import type { Metadata } from 'next'
+
 import { ProviderVerificationPanel } from '@/components/landing/ProviderVerificationPanel'
 import { TraceLedgerPanel } from '@/components/landing/TraceLedgerPanel'
 import { InformationPageShell } from '@/components/site/InformationPageShell'
 import { getLiveSystemSnapshot } from '@/lib/control-surface/live-system'
+import { createPageMetadata } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = createPageMetadata({
+  title: 'Assurance',
+  description:
+    'Assurance for binding compute decisions: verified water provenance, proof availability, trace integrity, and deterministic replay posture.',
+  path: '/assurance',
+  keywords: [
+    'environmental assurance',
+    'verified provenance',
+    'deterministic replay',
+    'decision proof',
+  ],
+})
 
 export default async function AssurancePage() {
   const snapshot = await getLiveSystemSnapshot()
@@ -18,8 +33,8 @@ export default async function AssurancePage() {
   return (
     <InformationPageShell
       eyebrow="Assurance"
-      title="Provenance closure and proof posture."
-      summary="Assurance on the website means the live authority layer has verified source datasets and the decision path can point to proof and trace artifacts without overclaiming beyond what the system actually returns."
+      title="Proof, trace, replay, and provenance behind every binding decision."
+      summary="CO2 Router treats assurance as an execution requirement, not a reporting add-on. The authority layer verifies water datasets, attaches proof references to decision frames, and preserves the trace required for deterministic replay."
       secondaryHref="/system/provenance"
       secondaryLabel="View Provenance"
     >
@@ -48,7 +63,7 @@ export default async function AssurancePage() {
             {snapshot.traceLedger.proofAvailable ? 'Live' : 'Unavailable'}
           </div>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            Proof on the public surface is only reported when the latest trace exposes it.
+            Proof is attached only when the live decision frame exposes it.
           </p>
         </article>
       </section>

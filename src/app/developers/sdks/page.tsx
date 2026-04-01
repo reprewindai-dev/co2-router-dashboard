@@ -1,11 +1,22 @@
+import type { Metadata } from 'next'
+
 import { InformationPageShell } from '@/components/site/InformationPageShell'
+import { createPageMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Developers SDKs',
+  description:
+    'Current developer integration posture for CO2 Router: the API contract, adapter plane, and enforcement bundles are the real supported surface.',
+  path: '/developers/sdks',
+  keywords: ['developer integrations', 'HTTP contract', 'adapter plane'],
+})
 
 export default function DevelopersSdksPage() {
   return (
     <InformationPageShell
       eyebrow="Developers / SDKs"
-      title="The current integration surface is the contract, not a marketing SDK claim."
-      summary="CO2 Router does not currently publish a separate SDK line. The real surface is the canonical HTTP contract, the adapter plane, and the enforcement bundles emitted by the engine."
+      title="The integration contract matters more than a packaging label."
+      summary="The supported developer surface today is the canonical HTTP contract, the adapter plane, and the enforcement bundles emitted by the engine. That is the real integration surface the control plane stands behind."
       secondaryHref="/developers/adapters"
       secondaryLabel="View Adapters"
     >
@@ -17,7 +28,7 @@ export default function DevelopersSdksPage() {
           },
           {
             title: 'What is not claimed',
-            body: 'No separate public npm package, language SDK suite, or generated client library is advertised here because those surfaces are not the product contract yet.',
+            body: 'A separate package line is not the authority layer. The product contract today is the decision API, the adapter surface, and the proof-linked outputs the engine already emits.',
           },
           {
             title: 'How to integrate now',

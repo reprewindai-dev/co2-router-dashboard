@@ -198,7 +198,7 @@ export type CiDecision = {
     total: number
     compute: number
     providerResolution?: number
-    cacheStatus?: 'live' | 'warm' | 'fallback' | 'redis'
+    cacheStatus?: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe' | 'fallback'
     influencedDecision?: boolean
   } | null
   decisionEnvelope?: Record<string, unknown> | null

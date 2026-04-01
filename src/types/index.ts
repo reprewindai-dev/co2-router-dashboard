@@ -202,14 +202,6 @@ export interface DashboardMetrics {
     activeSources?: string[]
     degradedSources?: string[]
   } | null
-  electricityMaps?: {
-    successRate: number | null
-    successCount: number
-    failureCount: number
-    lastSuccessAt: string | null
-    lastFailureAt: string | null
-    lastError: string | null
-  } | null
   forecastRefresh: {
     lastRun: {
       timestamp: string
@@ -590,8 +582,6 @@ export interface BestWindowResult {
 
 export interface GridSignalSummaryRegion {
   region: string
-  carbonIntensity?: number | null
-  source?: string | null
   balancingAuthority: string | null
   carbonIntensity: number | null
   source: string | null
@@ -679,6 +669,134 @@ export interface RegionStructuralProfile {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export interface DesignPartnerApplicationPayload {
+  companyName: string
+  companyDomain?: string | null
+  teamName?: string | null
+  teamType: 'infra' | 'platform' | 'sre' | 'data' | 'other'
+  applicantName: string
+  applicantEmail: string
+  roleTitle: string
+  mainWorkloadsPlatforms: string
+  goalsSummary: string
+  scopedWorkflow: string
+  internalChampion: string
+  commercialApprover?: string | null
+  commitmentConfirmed: true
+  anonymizedProofPermission: true
+  website?: string
+}
+
+export interface DesignPartnerRecord {
+  id: string
+  companyName: string
+  companyDomain: string | null
+  teamName: string | null
+  teamType: string | null
+  applicantName: string
+  applicantEmail: string
+  roleTitle: string
+  mainWorkloadsPlatforms: string
+  goalsSummary: string
+  scopedWorkflow: string
+  internalChampion: string
+  commercialApprover: string | null
+  partnerType: 'design'
+  cohort: string
+  status:
+    | 'applied'
+    | 'qualified'
+    | 'accepted'
+    | 'onboarding'
+    | 'active'
+    | 'graduating'
+    | 'converted'
+    | 'declined'
+    | 'churned'
+  onboardingStage:
+    | 'fit_confirmed'
+    | 'agreement_sent'
+    | 'agreement_signed'
+    | 'kickoff_scheduled'
+    | 'technical_setup'
+    | 'first_value'
+    | 'active_pilot'
+    | 'graduation_review'
+    | 'converted_paid'
+    | null
+  firstValueAt: string | null
+  convertedToPaidAt: string | null
+  totalPartnerSourcedArr: number
+  commitmentConfirmed: boolean
+  anonymizedProofPermission: boolean
+  notes: string | null
+  metadata: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DesignPartnerApplicationResponse {
+  success: boolean
+  partner: DesignPartnerRecord
+  remainingRequestsThisWindow: number
+}
+
+export type BillingLane = 'pilot' | 'ci' | 'control_surface' | 'enterprise'
+export type BillingSegment = 'small' | 'mid' | 'large'
+export type BillingInterval = 'one_time_30d' | 'monthly' | 'annual'
+
+export interface CommerceCheckoutSessionRequest {
+  lane: BillingLane
+  segment?: BillingSegment | null
+}
+
+export interface CommerceCheckoutSessionResponse {
+  success: boolean
+  sessionId: string
+  url: string | null
+  lane: BillingLane
+  segment: BillingSegment | null
+  interval: BillingInterval
+}
+
+export interface CommerceCheckoutSessionStatusResponse {
+  success: boolean
+  sessionId: string
+  lane: BillingLane
+  segment: BillingSegment | null
+  interval: BillingInterval | null
+  paymentStatus: string | null
+  checkoutStatus: string | null
+  priceLabel: string | null
+  buyerEmail: string | null
+  buyerName: string | null
+  organization: {
+    id: string
+    name: string
+    slug: string
+    planTier: string
+    activatedAt: string | null
+    accessExpiresAt: string | null
+  } | null
+}
+
+export interface ContactSubmissionInput {
+  category: 'sales' | 'support' | 'security'
+  name: string
+  email: string
+  company?: string
+  message: string
+  executionFootprint?: string
+  integrationSurface?: string
+  website?: string
+}
+
+export interface ContactSubmissionResponse {
+  success: boolean
+  message: string
+  remainingRequestsThisWindow?: number
+}
 
 export type CarbonLevel = 'low' | 'medium' | 'high'
 

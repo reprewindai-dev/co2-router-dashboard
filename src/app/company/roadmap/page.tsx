@@ -1,26 +1,37 @@
+import type { Metadata } from 'next'
+
 import { InformationPageShell } from '@/components/site/InformationPageShell'
+import { createPageMetadata } from '@/lib/seo'
 
 const workstreams = [
   {
-    title: 'Latency hardening',
-    detail: 'Reduce warmed decision latency while preserving proof, replay, governance, and water authority.',
+    title: 'Authority path hardening',
+    detail: 'Keep the decision path inside budget while preserving proof, replay, governance, and water authority.',
   },
   {
-    title: 'Trace rollout',
-    detail: 'Expand trace-backed inspection across live decision frames and make replay visibility more explicit on the control surface.',
+    title: 'Proof surface expansion',
+    detail: 'Expand trace-backed inspection across live decision frames and make replay and provenance more explicit on the control surface.',
   },
   {
-    title: 'Adapter maturity',
-    detail: 'Keep the canonical decision core stable while raising the maturity of the runtime adapter plane.',
+    title: 'Adapter and developer maturity',
+    detail: 'Keep the canonical decision core stable while raising the maturity of the runtime adapter plane and developer integration surface.',
   },
 ]
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Roadmap',
+  description:
+    'Current execution tracks for CO2 Router: authority-path hardening, proof-surface expansion, and adapter maturity.',
+  path: '/company/roadmap',
+  keywords: ['CO2 Router roadmap', 'authority path hardening', 'proof surface expansion'],
+})
 
 export default function CompanyRoadmapPage() {
   return (
     <InformationPageShell
       eyebrow="Company / Roadmap"
-      title="Current workstreams only."
-      summary="This page is intentionally narrow. It names the engineering tracks that are active now and avoids speculative promises."
+      title="Active execution tracks."
+      summary="This page names the engineering tracks that are active now. It stays focused on work already underway rather than speculative platform promises."
       secondaryHref="/status"
       secondaryLabel="View Status"
     >

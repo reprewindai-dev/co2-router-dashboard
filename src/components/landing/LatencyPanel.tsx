@@ -17,24 +17,34 @@ export function LatencyPanel({
         </p>
       ) : (
         <div className="mt-4 space-y-3 text-sm text-slate-300">
-          <div className="flex items-center justify-between gap-3">
-            <span>decision samples</span>
-            <span className="font-semibold text-white">{latency.samples ?? 'n/a'}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span>p95 total</span>
-            <span className={`font-semibold ${latencyToneClass(latency.p95TotalMs)}`}>
-              {latency.p95TotalMs == null ? 'n/a' : `${latency.p95TotalMs} ms`}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span>p95 compute</span>
-            <span className={`font-semibold ${latencyToneClass(latency.p95ComputeMs)}`}>
-              {latency.p95ComputeMs == null ? 'n/a' : `${latency.p95ComputeMs} ms`}
-            </span>
-          </div>
-          <div className="pt-2 text-xs text-slate-400">
-            budget {latency.budgetTotalP95Ms ?? 'n/a'} / {latency.budgetComputeP95Ms ?? 'n/a'} ms
+          {[
+            ['decision samples', latency.samples?.toString() ?? 'n/a', 'text-white'],
+            [
+              'p95 total',
+              latency.p95TotalMs == null ? 'n/a' : `${latency.p95TotalMs} ms`,
+              latencyToneClass(latency.p95TotalMs),
+            ],
+            [
+              'p95 compute',
+              latency.p95ComputeMs == null ? 'n/a' : `${latency.p95ComputeMs} ms`,
+              latencyToneClass(latency.p95ComputeMs),
+            ],
+          ].map(([label, value, tone]) => (
+            <div
+              key={label}
+              className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2"
+            >
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                {label}
+              </div>
+              <div className={`mt-1 text-sm font-semibold ${tone}`}>{value}</div>
+            </div>
+          ))}
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">budget</div>
+            <div className="mt-1 font-mono text-[11px] tracking-[0.08em] text-slate-400">
+              {latency.budgetTotalP95Ms ?? 'n/a'} / {latency.budgetComputeP95Ms ?? 'n/a'} ms
+            </div>
           </div>
         </div>
       )}

@@ -28,6 +28,13 @@ import type {
   GridSignalSummary,
   GridOpportunities,
   GridImportLeakage,
+  DesignPartnerApplicationPayload,
+  DesignPartnerApplicationResponse,
+  CommerceCheckoutSessionRequest,
+  CommerceCheckoutSessionResponse,
+  CommerceCheckoutSessionStatusResponse,
+  ContactSubmissionInput,
+  ContactSubmissionResponse,
 } from '@/types'
 
 const API_BASE = process.env.NEXT_PUBLIC_ECOBE_API_URL || '/api/ecobe'
@@ -35,7 +42,7 @@ const API_BASE = process.env.NEXT_PUBLIC_ECOBE_API_URL || '/api/ecobe'
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 30_000, // 30 s — prevents hung requests from blocking the UI
+  timeout: 30_000, // 30 s â€” prevents hung requests from blocking the UI
 })
 
 function isAxiosError(
@@ -135,28 +142,28 @@ api.interceptors.response.use(
 
       if (err.code === 'ECONNABORTED') {
         return Promise.reject(
-          new Error('Request timed out — CO₂Router Engine did not respond in time')
+          new Error('Request timed out â€” COâ‚‚Router Engine did not respond in time')
         )
       }
 
       if (!err.response) {
         return Promise.reject(
-          new Error('Cannot reach CO₂Router Engine — check NEXT_PUBLIC_ECOBE_API_URL')
+          new Error('Cannot reach COâ‚‚Router Engine â€” check NEXT_PUBLIC_ECOBE_API_URL')
         )
       }
 
       const status = err.response.status
       if (status === 404) return Promise.reject(new Error('Resource not found'))
       if (status === 401 || status === 403)
-        return Promise.reject(new Error('Unauthorized — check API credentials'))
+        return Promise.reject(new Error('Unauthorized â€” check API credentials'))
       if (status >= 500)
-        return Promise.reject(new Error(`CO₂Router Engine error (${status}) — check server logs`))
+        return Promise.reject(new Error(`COâ‚‚Router Engine error (${status}) â€” check server logs`))
     }
     return Promise.reject(err)
   }
 )
 
-// ─── Request Types ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Request Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface EnergyEquationRequest {
   requestVolume: number
@@ -194,16 +201,16 @@ export interface DekesScheduleRequest {
   lookAheadHours?: number
 }
 
-// ─── API Client ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ API Client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const ecobeApi = {
-  // ── Energy ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Energy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async calculateEnergyEquation(request: EnergyEquationRequest): Promise<EnergyEquationResult> {
     const { data } = await api.post<EnergyEquationResult>('/energy/equation', request)
     return data
   },
 
-  // ── Routing ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Routing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Returns GreenRoutingResult (200) or PolicyDelayResponse (202)
   async routeGreen(
     request: GreenRoutingRequest
@@ -228,7 +235,7 @@ export const ecobeApi = {
     return response.data
   },
 
-  // ── Dashboard ────────────────────────────────────────────────────────────────
+  // â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getDashboardMetrics(window: '24h' | '7d' = '24h'): Promise<DashboardMetrics> {
     try {
       const { data } = await api.get<DashboardMetrics>('/dashboard/metrics', { params: { window } })
@@ -302,7 +309,7 @@ export const ecobeApi = {
     }
   },
 
-  // ── Forecasting ──────────────────────────────────────────────────────────────
+  // â”€â”€ Forecasting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getRegionForecast(region: string, hoursAhead = 72): Promise<RegionForecast> {
     try {
       const { data } = await api.get<RegionForecast>(`/forecasting/${region}/forecasts`, {
@@ -331,7 +338,7 @@ export const ecobeApi = {
     }
   },
 
-  // ── Provider Health ───────────────────────────────────────────────────────────
+  // â”€â”€ Provider Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getProviderHealth(): Promise<MethodologyProviders> {
     try {
       const { data } = await api.get<MethodologyProviders>('/dashboard/methodology/providers')
@@ -382,7 +389,7 @@ export const ecobeApi = {
     }
   },
 
-  // ── DEKES ─────────────────────────────────────────────────────────────────────
+  // â”€â”€ DEKES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async optimizeDekesQuery(request: DekesOptimizeRequest) {
     const { data } = await api.post('/dekes/optimize', request)
     return data
@@ -402,7 +409,7 @@ export const ecobeApi = {
     return data
   },
 
-  // ── Intelligence ──────────────────────────────────────────────────────────────
+  // â”€â”€ Intelligence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getIntelligencePatterns(regions: string[]): Promise<PatternsResponse> {
     const { data } = await api.get<PatternsResponse>('/intelligence/patterns', {
       params: { region: regions.join(',') },
@@ -420,7 +427,7 @@ export const ecobeApi = {
     return data
   },
 
-  // ── Grid Intelligence ───────────────────────────────────────────────────────────
+  // â”€â”€ Grid Intelligence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getGridHeroMetrics(): Promise<GridHeroMetrics> {
     try {
       const { data } = await api.get<GridHeroMetrics>('/intelligence/grid/hero-metrics')
@@ -491,7 +498,7 @@ export const ecobeApi = {
     }
   },
 
-  // ── DEKES Integration ─────────────────────────────────────────────────────────
+  // â”€â”€ DEKES Integration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Read-only dashboard activation surfaces are built from a dashboard-side
   // read model derived from live ECOBE decisions and engine status.
   async getDekesIntegrationSummary(): Promise<DekesIntegrationSummaryResponse> {
@@ -524,23 +531,41 @@ export const ecobeApi = {
     return data
   },
 
-  // ── CI Routing ──────────────────────────────────────────────────────────────
-  async getCIRoutingHealth() {
-    const { data } = await api.get('/health')
+
+  // â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async applyForDesignPartnerProgram(
+    payload: DesignPartnerApplicationPayload
+  ): Promise<DesignPartnerApplicationResponse> {
+    const { data } = await api.post<DesignPartnerApplicationResponse>(
+      '/design-partners/applications',
+      payload
+    )
     return data
   },
 
-  async getCIAvailableRegions() {
-    const { data } = await api.get('/intelligence/grid/summary')
-    return data?.regions ?? []
+  async submitContact(
+    payload: ContactSubmissionInput
+  ): Promise<ContactSubmissionResponse> {
+    const { data } = await api.post<ContactSubmissionResponse>('/contact', payload)
+    return data
   },
 
-  async getCIDecisions(limit = 20) {
-    const { data } = await api.get<{ decisions: DashboardDecision[] }>(`/decisions?limit=${limit}`)
-    return data?.decisions ?? []
+  async createCheckoutSession(
+    payload: CommerceCheckoutSessionRequest
+  ): Promise<CommerceCheckoutSessionResponse> {
+    const { data } = await api.post<CommerceCheckoutSessionResponse>('/commerce/checkout', payload)
+    return data
   },
 
-  // ── Health ────────────────────────────────────────────────────────────────────
+  async getCheckoutSessionStatus(
+    sessionId: string
+  ): Promise<CommerceCheckoutSessionStatusResponse> {
+    const { data } = await api.get<CommerceCheckoutSessionStatusResponse>('/commerce/session-status', {
+      params: { sessionId },
+    })
+    return data
+  },
+
   async health() {
     const { data } = await api.get('/health')
     return data

@@ -1,11 +1,22 @@
+import type { Metadata } from 'next'
+
 import { InformationPageShell } from '@/components/site/InformationPageShell'
+import { createPageMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'About',
+  description:
+    'CO2 Router is building the execution authority layer for environmentally governed compute: binding decisions, proof, replay, and provenance before workloads run.',
+  path: '/company/about',
+  keywords: ['about CO2 Router', 'execution authority', 'environmentally governed compute'],
+})
 
 export default function CompanyAboutPage() {
   return (
     <InformationPageShell
       eyebrow="Company / About"
       title="CO2 Router is built as execution authority, not reporting software."
-      summary="The public company surface stays narrow on purpose: CO2 Router is a deterministic environmental execution control plane that decides whether compute runs, records proof, and supports replay."
+      summary="CO2 Router is building the execution authority layer for environmentally governed compute. The product decides whether workloads run, records proof against the same frame, and supports replay and provenance as part of the operating contract."
       secondaryHref="/methodology"
       secondaryLabel="View Methodology"
     >

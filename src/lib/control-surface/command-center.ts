@@ -5,6 +5,7 @@ import type {
   CiHealthSnapshot,
   CiSloSnapshot,
   CommandCenterDecisionItem,
+  CommandCenterProjectionSnapshot,
   CommandCenterSnapshot,
   ControlAction,
   ControlSurfaceProviderNode,
@@ -51,7 +52,7 @@ type DecisionRow = {
     total: number
     compute: number
     providerResolution?: number
-    cacheStatus?: 'live' | 'warm' | 'redis' | 'fallback'
+    cacheStatus?: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe' | 'fallback'
     providers?: {
       electricityMaps?: number | null
       wattTime?: number | null
@@ -98,6 +99,17 @@ type ProviderTrustResponse = {
     freshnessSec?: number | null
     datasetVersion?: string | null
   }>
+}
+
+type SystemStatusResponse = {
+  decisionProjectionOutbox: CommandCenterProjectionSnapshot['outbox']
+  decisionProjection: {
+    latestProjectionAt: string | null
+    latestCanonicalAt: string | null
+    projectionLagSec: number | null
+    dataStatus: CommandCenterProjectionSnapshot['dataStatus']
+    quality: CommandCenterProjectionSnapshot['quality']
+  } | null
 }
 
 type WaterProvenanceResponse = {
@@ -601,7 +613,7 @@ function extractWeights(
 }
 
 export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot> {
-  const [health, slo, decisionFeed, providerTrust, provenance] = await Promise.all([
+  const [health, slo, decisionFeed, providerTrust, provenance, systemStatus] = await Promise.all([
     fetchEngineJson<CiHealthSnapshot>('/ci/health'),
     fetchEngineJson<CiSloSnapshot>('/ci/slo'),
     fetchEngineJson<DecisionFeed>('/ci/decisions?limit=8'),
@@ -611,6 +623,10 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
       waterProviders: [],
     })),
     fetchEngineJson<WaterProvenanceResponse>('/water/provenance'),
+    fetchEngineJson<SystemStatusResponse>('/system/status').catch(() => ({
+      decisionProjectionOutbox: null,
+      decisionProjection: null,
+    })),
   ])
 
   const recentDecisions = decisionFeed.decisions.map(buildCommandCenterDecisionItem)
@@ -653,6 +669,17 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
       detail: `p95 ${slo.p95.totalMs.toFixed(0)}ms | ${providers.length} providers | ${
         provenance.datasets.filter((dataset) => dataset.verificationStatus === 'verified').length
       } verified water datasets`,
+    },
+    projection: {
+      dataStatus: systemStatus.decisionProjection?.dataStatus ?? 'broken',
+      projectionLagSec: systemStatus.decisionProjection?.projectionLagSec ?? null,
+      latestProjectionAt: systemStatus.decisionProjection?.latestProjectionAt ?? null,
+      latestCanonicalAt: systemStatus.decisionProjection?.latestCanonicalAt ?? null,
+      outbox: systemStatus.decisionProjectionOutbox ?? null,
+      quality: systemStatus.decisionProjection?.quality ?? {
+        suspectCount: 0,
+        invalidCount: 0,
+      },
     },
     world: {
       nodes: worldNodes,

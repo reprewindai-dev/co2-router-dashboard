@@ -8,12 +8,20 @@ import {
   proofArtifacts,
   routerActions,
 } from '@/lib/positioning'
+import { createPageMetadata } from '@/lib/seo'
 
-export const metadata: Metadata = {
-  title: 'CO2 Router Methodology | Deterministic Infrastructure Control',
+export const metadata: Metadata = createPageMetadata({
+  title: 'Methodology',
   description:
-    'How CO2 Router differs from schedulers, carbon APIs, and audit systems through deterministic enforcement, multi-objective routing, and replayable proof.',
-}
+    'How CO2 Router differs from schedulers, carbon APIs, and audit systems through deterministic pre-execution governance, binding decisions, and replayable proof.',
+  path: '/methodology',
+  keywords: [
+    'deterministic infrastructure control',
+    'pre-execution governance',
+    'binding decisions',
+    'replayable proof',
+  ],
+})
 
 export default function MethodologyPage() {
   return (
@@ -212,9 +220,8 @@ export default function MethodologyPage() {
             Primary references behind the category argument
           </h2>
           <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
-            This methodology page is productized public copy built on top of the source base you
-            assembled: control-plane architecture, marginal emissions logic, water risk datasets,
-            hash-chain audit patterns, and carbon-aware scheduling literature.
+            This methodology is grounded in control-plane architecture, marginal emissions logic,
+            water risk datasets, hash-chain audit patterns, and carbon-aware scheduling literature.
           </p>
         </div>
         <div className="mt-6 grid gap-3">

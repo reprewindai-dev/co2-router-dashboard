@@ -1,4 +1,7 @@
+import type { Metadata } from 'next'
+
 import { InformationPageShell } from '@/components/site/InformationPageShell'
+import { createPageMetadata } from '@/lib/seo'
 
 const curlExample = `curl -X POST https://co2router.com/api/ecobe/ci/authorize \\
   -H "content-type: application/json" \\
@@ -12,12 +15,20 @@ const curlExample = `curl -X POST https://co2router.com/api/ecobe/ci/authorize \
     "estimatedEnergyKwh": 2.5
   }'`
 
+export const metadata: Metadata = createPageMetadata({
+  title: 'Developers Quickstart',
+  description:
+    'Authorize a workload before execution, use the returned decision as authority, then inspect proof, trace, replay, and provenance.',
+  path: '/developers/quickstart',
+  keywords: ['quickstart', 'authorize workload', 'binding action', 'trace replay'],
+})
+
 export default function DevelopersQuickstartPage() {
   return (
     <InformationPageShell
       eyebrow="Developers / Quickstart"
       title="Authorize a workload before it runs."
-      summary="The quickstart is the real control-plane loop: send a decision request, inspect the action and proof hash, then trace and replay the same frame when needed."
+      summary="The quickstart is the real control-plane loop: send a decision request, treat the returned action as execution authority, then inspect proof, trace, replay, and provenance against the same frame."
       secondaryHref="/developers/api"
       secondaryLabel="View API"
     >
@@ -35,11 +46,11 @@ export default function DevelopersQuickstartPage() {
         {[
           {
             title: 'Step 2',
-            body: 'Use the returned decision action, selected region, reason code, and proof hash as the execution authority for the workload.',
+            body: 'Use the returned decision action, selected region, reason code, and proof hash as the execution authority. The workload does not run until that result is accepted.',
           },
           {
             title: 'Step 3',
-            body: 'Inspect the latest decision frame through the trace and replay endpoints when you need verification or debugging.',
+            body: 'Inspect the same decision frame through trace and replay endpoints when you need verification, debugging, or customer-facing proof.',
           },
           {
             title: 'Step 4',

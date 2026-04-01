@@ -1,4 +1,15 @@
+import type { Metadata } from 'next'
+
 import { InformationPageShell } from '@/components/site/InformationPageShell'
+import { createPageMetadata } from '@/lib/seo'
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Developers API',
+  description:
+    'The canonical HTTP contract for binding pre-execution decisions, proof references, trace inspection, replay, and provenance lookups.',
+  path: '/developers/api',
+  keywords: ['decision API', 'pre-execution authorization API', 'trace replay API'],
+})
 
 const requestExample = `POST /api/v1/ci/authorize
 {
@@ -36,7 +47,7 @@ export default function DevelopersApiPage() {
     <InformationPageShell
       eyebrow="Developers / API"
       title="The canonical HTTP contract for pre-execution decisions."
-      summary="The current public developer surface is the real decision contract, plus internal trace and replay inspection routes. This page does not claim SDKs or abstractions that do not exist."
+      summary="The API is the execution contract: request authorization before a workload runs, receive one binding action, then inspect proof, trace, replay, and provenance against the same decision frame."
       secondaryHref="/developers/quickstart"
       secondaryLabel="Open Quickstart"
     >

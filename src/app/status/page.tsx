@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+
 import { GovernancePanel } from '@/components/landing/GovernancePanel'
 import { LatencyPanel } from '@/components/landing/LatencyPanel'
 import { ProviderVerificationPanel } from '@/components/landing/ProviderVerificationPanel'
@@ -5,8 +7,16 @@ import { RecentDecisionsList } from '@/components/landing/RecentDecisionsList'
 import { TraceLedgerPanel } from '@/components/landing/TraceLedgerPanel'
 import { InformationPageShell } from '@/components/site/InformationPageShell'
 import { getLiveSystemSnapshot } from '@/lib/control-surface/live-system'
+import { createPageMetadata } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = createPageMetadata({
+  title: 'Status',
+  description:
+    'Live operational posture for engine latency, governance, trace, replay, recent decision frames, and verified environmental inputs.',
+  path: '/status',
+  keywords: ['system status', 'decision latency', 'governance status', 'trace status'],
+})
 
 export default async function StatusPage() {
   const snapshot = await getLiveSystemSnapshot()
@@ -15,7 +25,7 @@ export default async function StatusPage() {
     <InformationPageShell
       eyebrow="Status"
       title="Live system visibility for the execution control plane."
-      summary="This page reflects the current website-facing truth of the control system: recent decisions, trace and replay state, SAIQ governance, verified water datasets, and the live p95 latency window."
+      summary="This page reports live operational posture across recent decision frames, trace and replay state, SAIQ governance, verified water datasets, and the current p95 latency window."
       secondaryHref="/assurance"
       secondaryLabel="View Assurance"
     >
@@ -35,7 +45,7 @@ export default async function StatusPage() {
             {snapshot.traceLedger.traceAvailable ? 'Live' : 'Unavailable'}
           </div>
           <p className="mt-3 text-sm leading-7 text-slate-300">
-            Curated trace and replay state for the latest decision frame.
+            Trace-backed proof posture for the latest decision frame.
           </p>
         </article>
         <article className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">

@@ -1,5 +1,8 @@
+import type { Metadata } from 'next'
+
 import { InformationPageShell } from '@/components/site/InformationPageShell'
 import { routerActions } from '@/lib/positioning'
+import { createPageMetadata } from '@/lib/seo'
 
 const evaluationOrder = [
   'Policy and governance constraints are applied before execution.',
@@ -7,6 +10,14 @@ const evaluationOrder = [
   'Latency and workload criticality keep the decision inside a defensible operating envelope.',
   'Carbon and cost refine placement once hard constraints are satisfied.',
 ]
+
+export const metadata: Metadata = createPageMetadata({
+  title: 'Decision Engine',
+  description:
+    'The CO2 Router decision engine authorizes compute before execution and returns one binding action with proof and trace state attached.',
+  path: '/system/decision-engine',
+  keywords: ['decision engine', 'authorize compute', 'binding action'],
+})
 
 export default function SystemDecisionEnginePage() {
   return (

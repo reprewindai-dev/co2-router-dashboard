@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server'
 
 import { fetchEngineJson } from '@/lib/control-surface/engine'
-import type { CiRouteResponse } from '@/types/control-surface'
+import {
+  dashboardTelemetryMetricNames,
+  recordDashboardMetric,
+} from '@/lib/observability/telemetry'
+import type {
+  CiRouteResponse,
+  SimulationFastResponse,
+  SimulationMode,
+} from '@/types/control-surface'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +21,13 @@ const allowedPolicyProfiles = new Set([
   'eu_data_center_reporting',
   'high_water_sensitivity',
 ])
+
+function resolveMode(request: Request, payload: Record<string, unknown>): SimulationMode {
+  const url = new URL(request.url)
+  const queryMode = url.searchParams.get('mode')
+  const payloadMode = typeof payload.mode === 'string' ? payload.mode : null
+  return queryMode === 'full' || payloadMode === 'full' ? 'full' : 'fast'
+}
 
 function normalizePayload(raw: unknown) {
   if (typeof raw !== 'object' || raw === null) {
@@ -59,15 +74,128 @@ function normalizePayload(raw: unknown) {
   }
 }
 
+function toFastSimulationResponse(data: CiRouteResponse): SimulationFastResponse {
+  return {
+    mode: 'fast',
+    decision: data.decision,
+    decisionMode: data.decisionMode,
+    reasonCode: data.reasonCode,
+    decisionFrameId: data.decisionFrameId,
+    selectedRunner: data.selectedRunner,
+    selectedRegion: data.selectedRegion,
+    recommendation: data.recommendation,
+    signalConfidence: data.signalConfidence,
+    fallbackUsed: data.fallbackUsed,
+    signalMode: data.signalMode,
+    accountingMethod: data.accountingMethod,
+    notBefore: data.notBefore,
+    proofHash: data.proofHash,
+    waterAuthority: data.waterAuthority,
+    baseline: data.baseline,
+    selected: data.selected,
+    savings: data.savings,
+    policyTrace: {
+      policyVersion: data.policyTrace.policyVersion,
+      profile: data.policyTrace.profile,
+      reasonCodes: data.policyTrace.reasonCodes,
+      precedenceOverrideApplied: data.policyTrace.precedenceOverrideApplied,
+      operatingMode: data.policyTrace.operatingMode,
+      sekedPolicy: data.policyTrace.sekedPolicy,
+      externalPolicy: data.policyTrace.externalPolicy,
+    },
+    latencyMs: data.latencyMs,
+    proofRef: {
+      proofHash: data.proofHash,
+      decisionFrameId: data.decisionFrameId,
+      traceAvailable: data.decisionMode !== 'scenario_planning',
+    },
+  }
+}
+
 export async function POST(request: Request) {
+  const startedAt = performance.now()
+
   try {
-    const payload = normalizePayload(await request.json())
+    const rawPayload = (await request.json()) as Record<string, unknown>
+    const mode = resolveMode(request, rawPayload)
+    const payload = normalizePayload(rawPayload)
+    const enginePayload =
+      mode === 'fast'
+        ? {
+            ...payload,
+            decisionMode: 'scenario_planning' as const,
+          }
+        : payload
+
+    const engineStartedAt = performance.now()
     const data = await fetchEngineJson<CiRouteResponse>('/ci/route', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(enginePayload),
+      headers: {
+        'x-co2router-response-tier': mode,
+      },
+    }, {
+      internal: mode === 'fast',
     })
-    return NextResponse.json(data)
+    const engineMs = performance.now() - engineStartedAt
+
+    const responsePayload = mode === 'full' ? data : toFastSimulationResponse(data)
+    const serializationStartedAt = performance.now()
+    const serialized = JSON.stringify(responsePayload)
+    const serializationMs = performance.now() - serializationStartedAt
+    const totalMs = performance.now() - startedAt
+    const responseBytes = Buffer.byteLength(serialized)
+
+    recordDashboardMetric(dashboardTelemetryMetricNames.routeDurationMs, 'histogram', totalMs, {
+      route: 'simulate',
+      mode,
+    })
+    recordDashboardMetric(
+      dashboardTelemetryMetricNames.simulationEngineDurationMs,
+      'histogram',
+      engineMs,
+      {
+        route: 'simulate',
+        mode,
+      }
+    )
+    recordDashboardMetric(
+      dashboardTelemetryMetricNames.simulationSerializeDurationMs,
+      'histogram',
+      serializationMs,
+      {
+        route: 'simulate',
+        mode,
+      }
+    )
+    recordDashboardMetric(
+      dashboardTelemetryMetricNames.routeResponseBytes,
+      'histogram',
+      responseBytes,
+      {
+        route: 'simulate',
+        mode,
+      }
+    )
+
+    const response = new NextResponse(serialized, {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+      },
+    })
+    response.headers.set('x-co2router-sim-mode', mode)
+    response.headers.set('x-co2router-response-bytes', String(responseBytes))
+    response.headers.set(
+      'Server-Timing',
+      `engine;dur=${engineMs.toFixed(1)}, serialize;dur=${serializationMs.toFixed(1)}, total;dur=${totalMs.toFixed(1)}`
+    )
+
+    return response
   } catch (error) {
+    recordDashboardMetric(dashboardTelemetryMetricNames.routeErrorCount, 'counter', 1, {
+      route: 'simulate',
+    })
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Simulation failed' },
       { status: 400 }

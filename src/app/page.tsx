@@ -1,14 +1,15 @@
 'use client'
 
-import { HeroMotionSurface } from '@/components/landing/HeroMotionSurface'
+import { DecisionFlowDiagram } from '@/components/DecisionFlowDiagram'
 import { ActionStrip } from '@/components/landing/ActionStrip'
-import { DecisionExampleCard } from '@/components/landing/DecisionExampleCard'
 import { CategoryDifferenceSection } from '@/components/landing/CategoryDifferenceSection'
+import { DecisionExampleCard } from '@/components/landing/DecisionExampleCard'
+import { FinalCTASection } from '@/components/landing/FinalCTASection'
+import { HeroMotionSurface } from '@/components/landing/HeroMotionSurface'
+import { LiveSystemSection } from '@/components/landing/LiveSystemSection'
+import { PricingOrControlSection } from '@/components/landing/PricingOrControlSection'
 import { ProofMoatSection } from '@/components/landing/ProofMoatSection'
 import { SignalDoctrineSection } from '@/components/landing/SignalDoctrineSection'
-import { PricingOrControlSection } from '@/components/landing/PricingOrControlSection'
-import { FinalCTASection } from '@/components/landing/FinalCTASection'
-import { LiveSystemSection } from '@/components/landing/LiveSystemSection'
 import { useControlSurfaceOverview } from '@/lib/hooks/control-surface'
 
 export default function LandingPage() {
@@ -33,73 +34,115 @@ export default function LandingPage() {
     )
   }
 
-  const liveStrip = [...overview.decisions]
-    .sort((a, b) => (b.carbonReductionPct + b.waterImpactDeltaLiters) - (a.carbonReductionPct + a.waterImpactDeltaLiters))
-    .slice(0, 3)
   const heroDecision =
-    overview.featuredDecision && 'decisionFrameId' in overview.featuredDecision && !('decision' in overview.featuredDecision)
+    overview.featuredDecision &&
+    'decisionFrameId' in overview.featuredDecision &&
+    !('decision' in overview.featuredDecision)
       ? overview.featuredDecision
       : overview.decisions[0] ?? null
   const featuredDecision =
     overview.featuredDecision && 'decision' in overview.featuredDecision
       ? overview.featuredDecision
       : overview.liveDecision
+  const waterProviders = overview.providers.filter((provider) => provider.providerType === 'water')
+  const verifiedWaterDatasets = waterProviders.filter(
+    (provider) => provider.provenanceStatus === 'verified'
+  ).length
+
+  const proofContext = {
+    governance:
+      featuredDecision.policyTrace.profile ??
+      featuredDecision.policyTrace.policyVersion ??
+      'SAIQ governance attached',
+    replay:
+      overview.replay == null
+        ? 'Stored frames support replay when persisted.'
+        : overview.replay.deterministicMatch
+          ? 'Replay currently returns a deterministic match.'
+          : 'Replay is available for inspection on the frame.',
+    provenance:
+      waterProviders.length > 0
+        ? `${verifiedWaterDatasets} verified water datasets are attached to the current authority path.`
+        : 'Source lineage and water provenance are tracked on the decision frame.',
+  }
 
   return (
     <div className="space-y-8 pb-8">
       <HeroMotionSurface liveDecision={heroDecision} />
 
-      <section className="grid gap-3 lg:grid-cols-3">
-        {liveStrip.map((decision) => (
-          <div
-            key={decision.decisionFrameId}
-            className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4"
-          >
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-              live decision
-            </div>
-            <div className="mt-2 text-lg font-semibold text-white">{decision.workloadLabel}</div>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
-              <span className="rounded-full bg-white/[0.04] px-2 py-1">{decision.action}</span>
-              <span className="rounded-full bg-white/[0.04] px-2 py-1">{decision.selectedRegion}</span>
-              <span className="rounded-full bg-white/[0.04] px-2 py-1">
-                {decision.carbonReductionPct.toFixed(1)}% carbon delta
-              </span>
-            </div>
-          </div>
-        ))}
-      </section>
-
       <section className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 sm:p-8">
-        <div className="max-w-3xl">
-          <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">What it does</div>
-          <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
-            You do not optimize infrastructure anymore.
-            <span className="block bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-400 bg-clip-text text-transparent">
-              You control it.
-            </span>
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
-            A workload asks to run. CO2 Router co-evaluates carbon, water, latency, and cost.
-            SAIQ governance and policy constraints return one of five binding actions before
-            execution. The executor follows the decision. Proof, trace, and replay are recorded
-            against the same frame.
-          </p>
+        <div className="grid gap-8 lg:grid-cols-[1fr_0.95fr]">
+          <div className="max-w-3xl">
+            <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300">
+              What CO2 Router is
+            </div>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
+              A pre-execution enforcement layer for serious infrastructure.
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
+              CO2 Router authorizes compute before it runs. It evaluates carbon, water, latency,
+              cost, and policy together, then returns one of five binding actions.
+            </p>
+            <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
+              That is the control point. The proof trail, policy state, and replay path follow the
+              same governed record instead of being reconstructed later.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              {
+                title: 'Control Surface',
+                body: 'The operator console for live authority, evidence, and system posture.',
+              },
+              {
+                title: 'CI wedge',
+                body: 'The first deployment path: authorize CI jobs before moving into runtime enforcement.',
+              },
+              {
+                title: 'SAIQ governance',
+                body: 'The doctrine layer that weighs carbon, water, latency, cost, and policy before execution.',
+              },
+              {
+                title: 'Decision frame',
+                body: 'The single record that binds the action, policy trace, and evidence to one execution event.',
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-[24px] border border-white/8 bg-slate-950/60 p-5"
+              >
+                <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-300">
+                  {item.title}
+                </div>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{item.body}</p>
+              </div>
+            ))}
+          </div>
         </div>
+
         <div className="mt-8">
-          <ActionStrip distribution={overview.actionDistribution} />
+          <div className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
+            Binding action set
+          </div>
+          <div className="mt-4">
+            <ActionStrip distribution={overview.actionDistribution} />
+          </div>
         </div>
       </section>
-
-      <DecisionExampleCard decision={featuredDecision} />
 
       <CategoryDifferenceSection />
 
+      <section className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+        <DecisionFlowDiagram />
+      </section>
+
       <ProofMoatSection replay={overview.replay} />
+      <DecisionExampleCard decision={featuredDecision} proofContext={proofContext} />
       <SignalDoctrineSection providers={overview.providers} />
       <PricingOrControlSection />
-      <FinalCTASection />
       <LiveSystemSection />
+      <FinalCTASection />
     </div>
   )
 }

@@ -1,8 +1,18 @@
+import type { Metadata } from 'next'
+
 import { TraceLedgerPanel } from '@/components/landing/TraceLedgerPanel'
 import { InformationPageShell } from '@/components/site/InformationPageShell'
 import { getLiveSystemSnapshot } from '@/lib/control-surface/live-system'
+import { createPageMetadata } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = createPageMetadata({
+  title: 'Trace Ledger',
+  description:
+    'The append-only trace ledger stores decision lineage so proof and replay reference the same deterministic frame.',
+  path: '/system/trace-ledger',
+  keywords: ['trace ledger', 'append-only lineage', 'deterministic frame'],
+})
 
 export default async function SystemTraceLedgerPage() {
   const snapshot = await getLiveSystemSnapshot()
@@ -21,7 +31,7 @@ export default async function SystemTraceLedgerPage() {
           <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300">
             <p>Each trace record is keyed to a decision frame and chained with sequence and hash values.</p>
             <p>Proof, governance source, selected region, and performance timing are all attached to the trace view.</p>
-            <p>The website never claims trace availability when the internal trace route is unavailable.</p>
+            <p>Trace availability is reported directly from the live route so proof and replay stay tied to the same stored frame.</p>
           </div>
         </article>
         <TraceLedgerPanel traceLedger={snapshot.traceLedger} />

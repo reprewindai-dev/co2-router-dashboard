@@ -33,7 +33,7 @@ export interface ControlSurfaceDecisionSummary {
     total: number
     compute: number
     providerResolution?: number
-    cacheStatus?: 'live' | 'warm' | 'redis' | 'fallback'
+    cacheStatus?: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe' | 'fallback'
     providers?: {
       electricityMaps?: number | null
       wattTime?: number | null
@@ -321,7 +321,7 @@ export interface CiRouteResponse {
     total: number
     compute: number
     providerResolution?: number
-    cacheStatus?: 'live' | 'warm' | 'redis' | 'fallback'
+    cacheStatus?: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe' | 'fallback'
     influencedDecision?: boolean
     providers?: {
       electricityMaps?: number | null
@@ -335,6 +335,47 @@ export interface CiRouteResponse {
     withinEnvelope?: boolean
   }
 }
+
+export type SimulationMode = 'fast' | 'full'
+
+export interface SimulationFastResponse {
+  mode: 'fast'
+  decision: ControlAction
+  decisionMode: 'runtime_authorization' | 'scenario_planning'
+  reasonCode: string
+  decisionFrameId: string
+  selectedRunner: string
+  selectedRegion: string
+  recommendation: string
+  signalConfidence: number
+  fallbackUsed: boolean
+  signalMode: 'marginal' | 'average' | 'fallback'
+  accountingMethod: 'marginal' | 'flow-traced' | 'average'
+  notBefore: string | null
+  proofHash: string
+  waterAuthority: CiRouteResponse['waterAuthority']
+  baseline: CiRouteResponse['baseline']
+  selected: CiRouteResponse['selected']
+  savings: CiRouteResponse['savings']
+  policyTrace: Pick<
+    CiRouteResponse['policyTrace'],
+    | 'policyVersion'
+    | 'profile'
+    | 'reasonCodes'
+    | 'precedenceOverrideApplied'
+    | 'operatingMode'
+    | 'sekedPolicy'
+    | 'externalPolicy'
+  >
+  latencyMs?: CiRouteResponse['latencyMs']
+  proofRef: {
+    proofHash: string
+    decisionFrameId: string
+    traceAvailable: boolean
+  }
+}
+
+export type SimulationRouteResponse = SimulationFastResponse | CiRouteResponse
 
 export interface ReplayBundle {
   decisionFrameId: string
@@ -547,7 +588,7 @@ export interface DecisionTraceRawRecord {
           evidenceRefs: string[]
           facilityId?: string | null
         }
-        cacheStatus: 'live' | 'warm' | 'fallback'
+        cacheStatus: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe'
         providerResolutionMs: number
         carbonFreshnessSec: number | null
         waterFreshnessSec: number | null
@@ -566,7 +607,7 @@ export interface DecisionTraceRawRecord {
         defensibleReasonCodes: string[]
         guardrailBlocked: boolean
         guardrailReasons: string[]
-        cacheStatus: 'live' | 'warm' | 'fallback'
+        cacheStatus: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe'
         authorityMode: 'basin' | 'facility_overlay' | 'fallback'
         signalMode: 'marginal' | 'average' | 'fallback'
         accountingMethod: 'marginal' | 'flow-traced' | 'average'
@@ -659,7 +700,7 @@ export interface DecisionTraceRawRecord {
       providerTimings: Array<{
         region: string
         latencyMs: number
-        cacheStatus: 'live' | 'warm' | 'fallback'
+        cacheStatus: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe'
         carbonFreshnessSec: number | null
         waterFreshnessSec: number | null
         stalenessSec: number | null
@@ -756,10 +797,29 @@ export interface SystemHealthSnapshot {
   providers: ControlSurfaceProviderNode[]
 }
 
+export interface CommandCenterProjectionSnapshot {
+  dataStatus: 'healthy' | 'degraded' | 'stale' | 'broken'
+  projectionLagSec: number | null
+  latestProjectionAt: string | null
+  latestCanonicalAt: string | null
+  outbox: {
+    pending: number
+    processing: number
+    processed: number
+    failed: number
+    deadLetter: number
+  } | null
+  quality: {
+    suspectCount: number
+    invalidCount: number
+  }
+}
+
 export interface CommandCenterSnapshot {
   generatedAt: string
   selectedDecisionFrameId: string | null
   header: CommandCenterHeader
+  projection: CommandCenterProjectionSnapshot
   world: {
     nodes: WorldRegionState[]
     flows: WorldRoutingFlow[]

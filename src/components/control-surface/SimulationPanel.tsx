@@ -19,7 +19,7 @@ export function SimulationPanel({
   defaults: ControlSurfaceOverview['simulationDefaults']
   onSimulation: (decision: CiRouteResponse) => void
 }) {
-  const simulation = useSimulation()
+  const simulation = useSimulation('full')
   const [regions, setRegions] = useState(defaults.preferredRegions.join(', '))
   const [jobType, setJobType] = useState(defaults.jobType)
   const [criticality, setCriticality] = useState(defaults.criticality)
@@ -47,7 +47,7 @@ export function SimulationPanel({
       waterPolicyProfile,
     })
 
-    onSimulation(result)
+    onSimulation(result as CiRouteResponse)
   }
 
   return (

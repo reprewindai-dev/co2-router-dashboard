@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 
 import { fetchEngineJson, hasInternalApiKey } from '@/lib/control-surface/engine'
+import {
+  dashboardTelemetryMetricNames,
+  recordDashboardMetric,
+} from '@/lib/observability/telemetry'
 import type {
   ActionDistributionItem,
   CiHealthSnapshot,
@@ -50,7 +54,7 @@ type DecisionRow = {
     total: number
     compute: number
     providerResolution?: number
-    cacheStatus?: 'live' | 'warm' | 'redis' | 'fallback'
+    cacheStatus?: 'live' | 'warm' | 'redis' | 'lkg' | 'degraded-safe' | 'fallback'
     providers?: {
       electricityMaps?: number | null
       wattTime?: number | null
@@ -448,6 +452,7 @@ async function getReplayBundle(decisions: DecisionFeed['decisions']) {
 }
 
 export async function GET() {
+  const startedAt = performance.now()
   try {
     const [health, slo, ledger, metrics, decisionFeed] = await Promise.all([
       fetchEngineJson<CiHealthSnapshot>('/ci/health'),
@@ -565,9 +570,31 @@ export async function GET() {
       },
     }
 
-    return NextResponse.json(overview)
+    const serialized = JSON.stringify(overview)
+    const totalMs = performance.now() - startedAt
+    const responseBytes = Buffer.byteLength(serialized)
+
+    recordDashboardMetric(dashboardTelemetryMetricNames.routeDurationMs, 'histogram', totalMs, {
+      route: 'overview',
+    })
+    recordDashboardMetric(dashboardTelemetryMetricNames.routeResponseBytes, 'histogram', responseBytes, {
+      route: 'overview',
+    })
+
+    const response = new NextResponse(serialized, {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+      },
+    })
+    response.headers.set('x-co2router-response-bytes', String(responseBytes))
+    response.headers.set('Server-Timing', `total;dur=${totalMs.toFixed(1)}`)
+    return response
   } catch (error) {
     console.error('Control surface overview error:', error)
+    recordDashboardMetric(dashboardTelemetryMetricNames.routeErrorCount, 'counter', 1, {
+      route: 'overview',
+    })
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to build control surface overview' },
       { status: 500 }

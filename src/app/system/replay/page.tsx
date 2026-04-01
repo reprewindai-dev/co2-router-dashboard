@@ -1,7 +1,17 @@
+import type { Metadata } from 'next'
+
 import { InformationPageShell } from '@/components/site/InformationPageShell'
 import { getLiveSystemSnapshot } from '@/lib/control-surface/live-system'
+import { createPageMetadata } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = createPageMetadata({
+  title: 'Replay',
+  description:
+    'Deterministic replay proves that the same decision frame and stored inputs produce the same outcome.',
+  path: '/system/replay',
+  keywords: ['deterministic replay', 'decision replay', 'trace-backed replay'],
+})
 
 export default async function SystemReplayPage() {
   const snapshot = await getLiveSystemSnapshot()
@@ -10,7 +20,7 @@ export default async function SystemReplayPage() {
     <InformationPageShell
       eyebrow="System / Replay"
       title="Replay must re-run the same frame, not a new one."
-      summary="Replay is only meaningful when the same decision frame can be reconstructed against the same trace-backed inputs. This page reports the latest replay posture exactly as the engine returns it."
+      summary="Replay is only meaningful when the same stored decision frame can be reconstructed against the same trace-backed inputs. This page reports the latest replay posture exactly as the engine returns it."
       secondaryHref="/system/trace-ledger"
       secondaryLabel="View Trace Ledger"
     >

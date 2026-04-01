@@ -5,7 +5,7 @@ import type { LiveSystemSnapshot } from '@/types/control-surface'
 function compactHash(value: string | null) {
   if (!value) return 'unavailable'
   if (value.length <= 18) return value
-  return `${value.slice(0, 12)}…${value.slice(-6)}`
+  return `${value.slice(0, 10)}...${value.slice(-6)}`
 }
 
 export function TraceLedgerPanel({
@@ -22,34 +22,40 @@ export function TraceLedgerPanel({
         </p>
       ) : (
         <div className="mt-4 space-y-3 text-sm text-slate-300">
-          <div className="flex items-center justify-between gap-3">
-            <span>traceAvailable</span>
-            <span className="font-semibold text-white">
-              {traceLedger.traceAvailable ? 'yes' : 'no'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span>replay consistency</span>
-            <span className="font-semibold text-white">
-              {traceLedger.replayConsistent == null
+          {[
+            ['trace available', traceLedger.traceAvailable ? 'yes' : 'no'],
+            [
+              'replay consistency',
+              traceLedger.replayConsistent == null
                 ? 'unavailable'
                 : traceLedger.replayConsistent
                   ? 'consistent'
-                  : 'mismatch'}
-            </span>
+                  : 'mismatch',
+            ],
+            ['proof availability', traceLedger.proofAvailable ? 'available' : 'missing'],
+            ['sequence', traceLedger.sequenceNumber?.toString() ?? 'n/a'],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2"
+            >
+              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                {label}
+              </div>
+              <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+            </div>
+          ))}
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">trace ref</div>
+            <div className="mt-1 font-mono text-[11px] tracking-[0.08em] text-slate-400">
+              {compactHash(traceLedger.traceHash)}
+            </div>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span>proof availability</span>
-            <span className="font-semibold text-white">
-              {traceLedger.proofAvailable ? 'available' : 'missing'}
-            </span>
-          </div>
-          <div className="pt-2 text-[11px] uppercase tracking-[0.16em] text-slate-500">
-            sequence {traceLedger.sequenceNumber ?? 'n/a'}
-          </div>
-          <div className="text-xs text-slate-400">trace {compactHash(traceLedger.traceHash)}</div>
-          <div className="text-xs text-slate-400">
-            input {compactHash(traceLedger.inputSignalHash)}
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">input ref</div>
+            <div className="mt-1 font-mono text-[11px] tracking-[0.08em] text-slate-400">
+              {compactHash(traceLedger.inputSignalHash)}
+            </div>
           </div>
         </div>
       )}

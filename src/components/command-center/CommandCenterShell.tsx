@@ -13,7 +13,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { ACTION_META } from '@/components/control-surface/action-styles'
 import {
@@ -33,6 +33,8 @@ import type {
   WorldRoutingFlow,
   WorldExecutionState,
 } from '@/types/control-surface'
+
+type InspectorPanelMode = 'trace' | 'replay' | 'proof'
 
 function shortHash(value: string | null | undefined, length = 12) {
   if (!value) return 'Unavailable'
@@ -512,7 +514,7 @@ function DecisionEngineCore({
     <div className="relative z-10 rounded-[32px] border border-white/12 bg-[linear-gradient(180deg,rgba(5,15,33,0.88),rgba(2,6,23,0.95))] p-5 shadow-[0_24px_100px_rgba(0,0,0,0.45)] backdrop-blur">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Decision engine core</div>
+          <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Decision core</div>
           <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">
             {selectedDecision ? resolveActionMeta(selectedDecision.action).label : 'Awaiting frame'}
           </h2>
@@ -565,11 +567,11 @@ function DecisionEngineCore({
         </div>
 
         <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Reason path</div>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Authority path</div>
           <div className="mt-2 text-lg font-semibold text-white">{selectedDecision?.reasonCode ?? 'No active decision'}</div>
           <div className="mt-4 space-y-2 text-sm text-slate-300">
             <div>Action: <span className={meta.text}>{meta.label}</span></div>
-            <div>Signal mode: {selectedDecision?.signalMode ?? 'Unavailable'} / accounting {selectedDecision?.accountingMethod ?? 'Unavailable'}</div>
+            <div>Signal posture: {selectedDecision?.signalMode ?? 'Unavailable'} / accounting {selectedDecision?.accountingMethod ?? 'Unavailable'}</div>
             <div>Water can block: {selectedDecision?.systemState === 'blocked' ? 'yes' : 'not on current frame'}</div>
             <div>Constraints applied: {governance.impact.constraintsApplied}</div>
           </div>
@@ -587,7 +589,7 @@ function SaiqGovernanceEngine({ governance }: { governance: SaiqGovernanceSnapsh
       <div className="flex items-center gap-3">
         <ShieldCheck className="h-5 w-5 text-cyan-300" />
         <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">SAIQ governance engine</div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">SAIQ governance layer</div>
           <div className="mt-1 text-lg font-semibold text-white">Weighted execution authority.</div>
         </div>
       </div>
@@ -718,9 +720,234 @@ function SystemHealthPanel({ providers, snapshot }: { providers: ControlSurfaceP
   )
 }
 
+function ProjectionFreshnessBanner({
+  projection,
+}: {
+  projection: CommandCenterSnapshot['projection']
+}) {
+  const tone =
+    projection.dataStatus === 'healthy'
+      ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100'
+      : projection.dataStatus === 'degraded'
+        ? 'border-amber-400/25 bg-amber-400/10 text-amber-100'
+        : 'border-rose-400/25 bg-rose-400/10 text-rose-100'
+
+  const headline =
+    projection.dataStatus === 'healthy'
+      ? 'Projection healthy'
+      : projection.dataStatus === 'degraded'
+        ? 'Projection delayed'
+        : projection.dataStatus === 'stale'
+          ? 'Projection stale'
+          : 'Projection broken'
+
+  const detail =
+    projection.dataStatus === 'healthy'
+      ? 'Dashboard projection is keeping pace with canonical decisions.'
+      : projection.dataStatus === 'degraded'
+        ? 'Canonical decisions remain live, but the dashboard projection is lagging and should be treated as delayed.'
+        : projection.dataStatus === 'stale'
+          ? 'Canonical decisions are the source of truth right now. Derived dashboard views are stale and should not be treated as live authority.'
+          : 'Projection freshness cannot support a live dashboard claim. Treat the canonical decision stream as authoritative until the projector recovers.'
+
+  return (
+    <section className={clsx('rounded-[24px] border p-4', tone)}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-white/70">Projection freshness</div>
+          <div className="mt-2 text-lg font-semibold text-white">{headline}</div>
+          <div className="mt-2 max-w-3xl text-sm text-white/80">{detail}</div>
+        </div>
+        <div className="grid gap-2 text-xs text-white/80 sm:grid-cols-2 lg:min-w-[360px]">
+          <div>Lag {formatSecondsCompact(projection.projectionLagSec)}</div>
+          <div>Latest projection {projection.latestProjectionAt ? formatAgo(projection.latestProjectionAt) : 'Unavailable'}</div>
+          <div>Latest canonical {projection.latestCanonicalAt ? formatAgo(projection.latestCanonicalAt) : 'Unavailable'}</div>
+          <div>
+            Quality {projection.quality.suspectCount} suspect / {projection.quality.invalidCount} invalid
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PersistentInspectorPanel({
+  activePanel,
+  onSelectPanel,
+  selectedDecision,
+  selectedTrace,
+  selectedReplay,
+  activeProofHash,
+  activeEvidenceRefs,
+  activeProviderRefs,
+}: {
+  activePanel: InspectorPanelMode
+  onSelectPanel: (panel: InspectorPanelMode) => void
+  selectedDecision: CommandCenterDecisionItem | null
+  selectedTrace: DecisionTraceRawRecord | null
+  selectedReplay: LiveSystemReplayResponse | null
+  activeProofHash: string | null
+  activeEvidenceRefs: string[]
+  activeProviderRefs: string[]
+}) {
+  const panels: Array<{ id: InspectorPanelMode; label: string }> = [
+    { id: 'trace', label: 'Trace' },
+    { id: 'replay', label: 'Replay' },
+    { id: 'proof', label: 'Proof' },
+  ]
+
+  return (
+    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,10,24,0.96),rgba(3,9,20,0.92))] p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Persistent inspector</div>
+          <div className="mt-1 text-lg font-semibold text-white">Selected decision detail.</div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {panels.map((panel) => (
+            <button
+              key={panel.id}
+              type="button"
+              onClick={() => onSelectPanel(panel.id)}
+              className={clsx(
+                'rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] transition',
+                activePanel === panel.id
+                  ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100'
+                  : 'border-white/10 bg-white/[0.04] text-slate-300'
+              )}
+            >
+              {panel.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-mono text-xs text-slate-300">
+            {selectedDecision?.decisionFrameId ?? 'No decision selected'}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">
+            {selectedDecision?.selectedRegion ?? 'No region'}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">
+            {selectedDecision ? resolveActionMeta(selectedDecision.action).label : 'Unavailable'}
+          </span>
+        </div>
+      </div>
+
+      {activePanel === 'trace' ? (
+        selectedTrace ? (
+          <div className="mt-4 space-y-5">
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Ledger</div>
+              <div className="mt-3 grid gap-2 text-sm text-white">
+                <div>Trace hash {selectedTrace.traceHash}</div>
+                <div>Input hash {selectedTrace.inputSignalHash}</div>
+                <div>Sequence {selectedTrace.sequenceNumber}</div>
+                <div>Created {selectedTrace.createdAt}</div>
+              </div>
+            </div>
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Governance</div>
+              <div className="mt-3 grid gap-2 text-sm text-white">
+                <div>Source {selectedTrace.payload.governance.source}</div>
+                <div>Strict {selectedTrace.payload.governance.strict ? 'yes' : 'no'}</div>
+                <div>
+                  Constraints {selectedTrace.payload.governance.constraintsApplied.join(', ') || 'none'}
+                </div>
+              </div>
+            </div>
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Resolved candidates</div>
+              <div className="mt-3 space-y-2">
+                {selectedTrace.payload.normalizedSignals.candidates.map((candidate) => (
+                  <div
+                    key={candidate.region}
+                    className="rounded-[16px] border border-white/8 bg-slate-950/60 p-3 text-sm text-slate-200"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{candidate.region}</span>
+                      <span>{candidate.score.toFixed(3)}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      water stress {candidate.waterStressIndex.toFixed(2)} / cache {candidate.cacheStatus}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 text-sm text-slate-300">Trace unavailable for the selected frame.</div>
+        )
+      ) : null}
+
+      {activePanel === 'replay' ? (
+        selectedReplay ? (
+          <div className="mt-4 space-y-5">
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Replay state</div>
+              <div className="mt-3 grid gap-2 text-sm text-white">
+                <div>Deterministic match {selectedReplay.deterministicMatch ? 'yes' : 'no'}</div>
+                <div>Trace backed {selectedReplay.traceBacked ? 'yes' : 'no'}</div>
+                <div>Legacy {selectedReplay.legacy ? 'yes' : 'no'}</div>
+                <div>
+                  Mismatches {selectedReplay.mismatches.length ? selectedReplay.mismatches.join(', ') : 'none'}
+                </div>
+              </div>
+            </div>
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Stored vs replayed</div>
+              <div className="mt-3 grid gap-2 text-sm text-white">
+                <div>
+                  Action {selectedReplay.persisted?.decision ?? 'Unavailable'} / {selectedReplay.replay.decision}
+                </div>
+                <div>
+                  Region {selectedReplay.persisted?.selectedRegion ?? 'Unavailable'} / {selectedReplay.replay.selectedRegion}
+                </div>
+                <div>
+                  Reason {selectedReplay.persisted?.reasonCode ?? 'Unavailable'} / {selectedReplay.replay.reasonCode}
+                </div>
+                <div>
+                  Proof {shortHash(selectedReplay.persisted?.proofHash)} / {shortHash(selectedReplay.replay.proofHash)}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 text-sm text-slate-300">Replay unavailable for the selected frame.</div>
+        )
+      ) : null}
+
+      {activePanel === 'proof' ? (
+        <div className="mt-4 space-y-5">
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Proof reference</div>
+            <div className="mt-3 font-mono text-sm text-white">{activeProofHash ?? 'Unavailable'}</div>
+          </div>
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Provider snapshot refs</div>
+            <div className="mt-3 space-y-2 text-sm text-white">
+              {activeProviderRefs.length ? activeProviderRefs.map((ref) => <div key={ref}>{ref}</div>) : <div>Unavailable</div>}
+            </div>
+          </div>
+          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Water evidence refs</div>
+            <div className="mt-3 space-y-2 text-sm text-white">
+              {activeEvidenceRefs.length ? activeEvidenceRefs.map((ref) => <div key={ref}>{ref}</div>) : <div>Unavailable</div>}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
 function TraceEventStream({
   items,
   selectedFrameId,
+  activePanel,
   onSelect,
   onInspect,
   onReplay,
@@ -728,6 +955,7 @@ function TraceEventStream({
 }: {
   items: TraceEventItem[]
   selectedFrameId: string | null
+  activePanel: InspectorPanelMode
   onSelect: (decisionFrameId: string) => void
   onInspect: (decisionFrameId: string) => void
   onReplay: (decisionFrameId: string) => void
@@ -781,13 +1009,40 @@ function TraceEventStream({
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white" onClick={() => onInspect(item.decisionFrameId)}>
-                  Inspect
+                <button
+                  type="button"
+                  className={clsx(
+                    'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white',
+                    activePanel === 'trace' && selected
+                      ? 'border-cyan-300/30 bg-cyan-300/10'
+                      : 'border-white/10 bg-white/[0.04]'
+                  )}
+                  onClick={() => onInspect(item.decisionFrameId)}
+                >
+                  Trace
                 </button>
-                <button type="button" className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white" onClick={() => onReplay(item.decisionFrameId)}>
+                <button
+                  type="button"
+                  className={clsx(
+                    'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white',
+                    activePanel === 'replay' && selected
+                      ? 'border-cyan-300/30 bg-cyan-300/10'
+                      : 'border-white/10 bg-white/[0.04]'
+                  )}
+                  onClick={() => onReplay(item.decisionFrameId)}
+                >
                   Replay
                 </button>
-                <button type="button" className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white" onClick={() => onProof(item.decisionFrameId)}>
+                <button
+                  type="button"
+                  className={clsx(
+                    'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white',
+                    activePanel === 'proof' && selected
+                      ? 'border-cyan-300/30 bg-cyan-300/10'
+                      : 'border-white/10 bg-white/[0.04]'
+                  )}
+                  onClick={() => onProof(item.decisionFrameId)}
+                >
                   Proof
                 </button>
               </div>
@@ -814,7 +1069,7 @@ function RecentDecisionQueue({
         <Globe2 className="h-5 w-5 text-lime-300" />
         <div>
           <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Recent decision queue</div>
-          <div className="mt-1 text-lg font-semibold text-white">Streaming authorization outcomes.</div>
+          <div className="mt-1 text-lg font-semibold text-white">Binding execution outcomes.</div>
         </div>
       </div>
 
@@ -844,39 +1099,11 @@ function RecentDecisionQueue({
   )
 }
 
-function InspectDrawer({
-  open,
-  title,
-  onClose,
-  children,
-}: {
-  open: boolean
-  title: string
-  onClose: () => void
-  children: ReactNode
-}) {
-  if (!open) return null
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/72 backdrop-blur-sm">
-      <div className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/10 bg-[linear-gradient(180deg,rgba(4,10,24,0.98),rgba(2,8,23,0.98))] p-6">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-xl font-semibold text-white">{title}</h3>
-          <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.18em] text-slate-300">
-            Close
-          </button>
-        </div>
-        <div className="mt-6">{children}</div>
-      </div>
-    </div>
-  )
-}
-
 export function CommandCenterShell() {
   const snapshotQuery = useCommandCenterSnapshot()
   const snapshot = snapshotQuery.data
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null)
-  const [drawer, setDrawer] = useState<{ type: 'trace' | 'replay' | 'proof'; decisionFrameId: string } | null>(null)
+  const [activePanel, setActivePanel] = useState<InspectorPanelMode>('trace')
 
   useEffect(() => {
     if (!snapshot) return
@@ -945,142 +1172,61 @@ export function CommandCenterShell() {
   const activeProviderRefs = selectedTrace?.payload.proof.providerSnapshotRefs ?? []
 
   return (
-    <>
-      <div className="space-y-5">
-        <GlobalCommandHeader snapshot={snapshot} selectedTrace={selectedTrace} selectedReplay={selectedReplay} />
+    <div className="space-y-5">
+      <GlobalCommandHeader snapshot={snapshot} selectedTrace={selectedTrace} selectedReplay={selectedReplay} />
+      <ProjectionFreshnessBanner projection={snapshot.projection} />
 
-        <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1.55fr)_360px]">
-          <div className="space-y-5">
+      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="space-y-5">
+          <RecentDecisionQueue
+            items={snapshot.decisionCore.recentDecisions}
+            selectedFrameId={selectedFrameId}
+            onSelect={setSelectedFrameId}
+          />
+          <TraceEventStream
+            items={traceItems}
+            selectedFrameId={selectedFrameId}
+            activePanel={activePanel}
+            onSelect={setSelectedFrameId}
+            onInspect={(decisionFrameId) => {
+              setSelectedFrameId(decisionFrameId)
+              setActivePanel('trace')
+            }}
+            onReplay={(decisionFrameId) => {
+              setSelectedFrameId(decisionFrameId)
+              setActivePanel('replay')
+            }}
+            onProof={(decisionFrameId) => {
+              setSelectedFrameId(decisionFrameId)
+              setActivePanel('proof')
+            }}
+          />
+        </div>
+
+        <div className="space-y-5">
+          <WorldExecutionGrid model={worldModel} selectedFrameId={selectedFrameId} onSelectFrame={setSelectedFrameId} />
+          <DecisionEngineCore
+            selectedDecision={selectedDecision}
+            selectedTrace={selectedTrace}
+            selectedReplay={selectedReplay}
+            governance={governance}
+          />
+          <PersistentInspectorPanel
+            activePanel={activePanel}
+            onSelectPanel={setActivePanel}
+            selectedDecision={selectedDecision}
+            selectedTrace={selectedTrace}
+            selectedReplay={selectedReplay}
+            activeProofHash={activeProofHash}
+            activeEvidenceRefs={activeEvidenceRefs}
+            activeProviderRefs={activeProviderRefs}
+          />
+          <div className="grid gap-5 2xl:grid-cols-[320px_minmax(0,1fr)]">
             <SaiqGovernanceEngine governance={governance} />
             <SystemHealthPanel providers={snapshot.health.providers} snapshot={snapshot.health} />
           </div>
-
-          <div className="space-y-5">
-            <div className="relative">
-              <WorldExecutionGrid model={worldModel} selectedFrameId={selectedFrameId} onSelectFrame={setSelectedFrameId} />
-              <div className="pointer-events-none absolute inset-x-4 top-24 z-10 sm:inset-x-8 sm:top-28">
-                <DecisionEngineCore
-                  selectedDecision={selectedDecision}
-                  selectedTrace={selectedTrace}
-                  selectedReplay={selectedReplay}
-                  governance={governance}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <TraceEventStream
-              items={traceItems}
-              selectedFrameId={selectedFrameId}
-              onSelect={setSelectedFrameId}
-              onInspect={(decisionFrameId) => {
-                setSelectedFrameId(decisionFrameId)
-                setDrawer({ type: 'trace', decisionFrameId })
-              }}
-              onReplay={(decisionFrameId) => {
-                setSelectedFrameId(decisionFrameId)
-                setDrawer({ type: 'replay', decisionFrameId })
-              }}
-              onProof={(decisionFrameId) => {
-                setSelectedFrameId(decisionFrameId)
-                setDrawer({ type: 'proof', decisionFrameId })
-              }}
-            />
-            <RecentDecisionQueue items={snapshot.decisionCore.recentDecisions} selectedFrameId={selectedFrameId} onSelect={setSelectedFrameId} />
-          </div>
         </div>
       </div>
-
-      <InspectDrawer open={drawer?.type === 'trace'} title="Trace inspection" onClose={() => setDrawer(null)}>
-        {selectedTrace ? (
-          <div className="space-y-5">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Ledger</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>Trace hash {selectedTrace.traceHash}</div>
-                <div>Input hash {selectedTrace.inputSignalHash}</div>
-                <div>Sequence {selectedTrace.sequenceNumber}</div>
-                <div>Created {selectedTrace.createdAt}</div>
-              </div>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Governance</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>Source {selectedTrace.payload.governance.source}</div>
-                <div>Strict {selectedTrace.payload.governance.strict ? 'yes' : 'no'}</div>
-                <div>Constraints {selectedTrace.payload.governance.constraintsApplied.join(', ') || 'none'}</div>
-              </div>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Resolved candidates</div>
-              <div className="mt-3 space-y-2">
-                {selectedTrace.payload.normalizedSignals.candidates.map((candidate) => (
-                  <div key={candidate.region} className="rounded-[16px] border border-white/8 bg-slate-950/60 p-3 text-sm text-slate-200">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{candidate.region}</span>
-                      <span>{candidate.score.toFixed(3)}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      water stress {candidate.waterStressIndex.toFixed(2)} / cache {candidate.cacheStatus}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-slate-300">Trace unavailable for the selected frame.</div>
-        )}
-      </InspectDrawer>
-
-      <InspectDrawer open={drawer?.type === 'replay'} title="Replay inspection" onClose={() => setDrawer(null)}>
-        {selectedReplay ? (
-          <div className="space-y-5">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Replay state</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>Deterministic match {selectedReplay.deterministicMatch ? 'yes' : 'no'}</div>
-                <div>Trace backed {selectedReplay.traceBacked ? 'yes' : 'no'}</div>
-                <div>Legacy {selectedReplay.legacy ? 'yes' : 'no'}</div>
-                <div>Mismatches {selectedReplay.mismatches.length ? selectedReplay.mismatches.join(', ') : 'none'}</div>
-              </div>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Stored vs replayed</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>Action {selectedReplay.persisted?.decision ?? 'Unavailable'} / {selectedReplay.replay.decision}</div>
-                <div>Region {selectedReplay.persisted?.selectedRegion ?? 'Unavailable'} / {selectedReplay.replay.selectedRegion}</div>
-                <div>Reason {selectedReplay.persisted?.reasonCode ?? 'Unavailable'} / {selectedReplay.replay.reasonCode}</div>
-                <div>Proof {shortHash(selectedReplay.persisted?.proofHash)} / {shortHash(selectedReplay.replay.proofHash)}</div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-slate-300">Replay unavailable for the selected frame.</div>
-        )}
-      </InspectDrawer>
-
-      <InspectDrawer open={drawer?.type === 'proof'} title="Proof inspection" onClose={() => setDrawer(null)}>
-        <div className="space-y-5">
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Proof hash</div>
-            <div className="mt-3 font-mono text-sm text-white">{activeProofHash ?? 'Unavailable'}</div>
-          </div>
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Provider snapshot refs</div>
-            <div className="mt-3 space-y-2 text-sm text-white">
-              {activeProviderRefs.length ? activeProviderRefs.map((ref) => <div key={ref}>{ref}</div>) : <div>Unavailable</div>}
-            </div>
-          </div>
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Water evidence refs</div>
-            <div className="mt-3 space-y-2 text-sm text-white">
-              {activeEvidenceRefs.length ? activeEvidenceRefs.map((ref) => <div key={ref}>{ref}</div>) : <div>Unavailable</div>}
-            </div>
-          </div>
-        </div>
-      </InspectDrawer>
-    </>
+    </div>
   )
 }
