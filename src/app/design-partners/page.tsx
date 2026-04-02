@@ -44,7 +44,7 @@ export default function DesignPartnersPage() {
         <div className="absolute right-[-8%] top-[-18%] h-56 w-56 rounded-full border border-cyan-300/10 bg-cyan-300/10 blur-3xl" />
         <div className="absolute bottom-[-20%] right-[12%] h-64 w-64 rounded-full border border-emerald-300/10 bg-emerald-300/10 blur-3xl" />
 
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_420px] lg:items-end">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_420px] lg:items-start">
           <div className="relative z-10 max-w-4xl space-y-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-[11px] uppercase tracking-[0.26em] text-cyan-200 animate-fade-in">
               <Sparkles className="h-3.5 w-3.5" />
@@ -135,21 +135,39 @@ export default function DesignPartnersPage() {
                 </div>
               ))}
             </div>
-
-            <div className="mt-6 space-y-4 border-t border-white/10 pt-5">
-              {designPartnerTimeline.map((item) => (
-                <div key={item.phase} className="grid grid-cols-[72px_1fr] gap-4">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                    {item.phase}
-                  </div>
-                  <div className="border-l border-white/10 pl-4">
-                    <div className="text-sm font-semibold text-white">{item.title}</div>
-                    <div className="mt-1 text-sm leading-7 text-slate-300">{item.detail}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">
+              Pilot timeline
+            </div>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-white">
+              Four tight phases. No dead pilot time.
+            </h2>
+          </div>
+          <p className="max-w-xl text-sm leading-7 text-slate-300">
+            The page keeps the same structure, but the hero no longer stretches to carry the full
+            timeline. The operational sequence sits here instead, where it reads cleanly.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-4 lg:grid-cols-4">
+          {designPartnerTimeline.map((item) => (
+            <article
+              key={item.phase}
+              className="rounded-[24px] border border-white/10 bg-slate-950/45 p-5"
+            >
+              <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
+                {item.phase}
+              </div>
+              <div className="mt-3 text-lg font-semibold text-white">{item.title}</div>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{item.detail}</p>
+            </article>
+          ))}
         </div>
       </section>
 

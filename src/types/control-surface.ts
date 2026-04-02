@@ -1,9 +1,74 @@
 export type ControlAction = 'run_now' | 'reroute' | 'delay' | 'throttle' | 'deny'
+export type WorkloadClass = 'batch' | 'interactive' | 'critical' | 'regulated' | 'emergency'
+
+export interface DecisionExplanationContract {
+  hierarchy: string[]
+  whyAction: string
+  whyTarget: string
+  dominantConstraint: string
+  policyPrecedence: string[]
+  rejectedAlternatives: Array<{
+    region: string
+    reason: string
+  }>
+  counterfactualCondition: string
+  uncertaintySummary: string
+}
+
+export interface DecisionTrustContract {
+  signalFreshness: {
+    carbonFreshnessSec: number | null
+    waterFreshnessSec: number | null
+    freshnessSummary: string
+  }
+  providerTrust: {
+    carbonProvider: string
+    carbonProviderHealth: 'HEALTHY' | 'DEGRADED' | 'FAILED'
+    waterAuthorityHealth: 'HEALTHY' | 'DEGRADED' | 'FAILED'
+    providerTrustTier: 'high' | 'medium' | 'guarded'
+  }
+  disagreement: {
+    present: boolean
+    pct: number
+    summary: string
+  }
+  estimatedFields: {
+    present: boolean
+    fields: string[]
+  }
+  replayability: {
+    status: 'replayable' | 'degraded' | 'local_only'
+    summary: string
+  }
+  fallbackMode: {
+    engaged: boolean
+    summary: string
+  }
+  degradedState: {
+    degraded: boolean
+    reasons: string[]
+    summary: string
+  }
+}
+
+export interface MaturityLane {
+  label: string
+  state: 'production_ready' | 'strongest_today' | 'roadmap' | 'experimental'
+  detail: string
+}
+
+export interface BuyerScenario {
+  title: string
+  workloadClass: WorkloadClass
+  operatorOutcome: string
+  proofPosture: string
+}
 
 export interface ControlSurfaceDecisionSummary {
   decisionFrameId: string
   createdAt: string
   workloadLabel: string
+  workloadClass: WorkloadClass
   action: ControlAction
   decisionMode: 'runtime_authorization' | 'scenario_planning'
   reasonCode: string
@@ -29,6 +94,8 @@ export interface ControlSurfaceDecisionSummary {
   notBefore: string | null
   proofHash: string
   summaryReason: string
+  decisionExplanation?: DecisionExplanationContract | null
+  decisionTrust?: DecisionTrustContract | null
   latencyMs?: {
     total: number
     compute: number
@@ -182,6 +249,7 @@ export interface CiSloSnapshot {
 
 export interface CiRouteResponse {
   decision: ControlAction
+  workloadClass: WorkloadClass
   decisionMode: 'runtime_authorization' | 'scenario_planning'
   reasonCode: string
   decisionFrameId: string
@@ -205,6 +273,8 @@ export interface CiRouteResponse {
     bundleHash: string | null
     manifestHash: string | null
   }
+  decisionExplanation: DecisionExplanationContract
+  decisionTrust: DecisionTrustContract
   policyTrace: Record<string, unknown> & {
     policyVersion?: string
     profile?: string
@@ -510,6 +580,8 @@ export interface ControlSurfaceOverview {
   actionDistribution: ActionDistributionItem[]
   providers: ControlSurfaceProviderNode[]
   scenarioPreviews: ScenarioPreview[]
+  maturity: MaturityLane[]
+  buyerScenarios: BuyerScenario[]
   timeline: ControlSurfaceTimelineEvent[]
   metrics: {
     fallbackRate: number

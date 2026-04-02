@@ -7,6 +7,7 @@ import {
 } from '@/lib/observability/telemetry'
 import type {
   ActionDistributionItem,
+  BuyerScenario,
   CiHealthSnapshot,
   CiRouteResponse,
   CiSloSnapshot,
@@ -14,6 +15,7 @@ import type {
   ControlSurfaceDecisionSummary,
   ControlSurfaceOverview,
   ControlSurfaceProviderNode,
+  MaturityLane,
   ScenarioPreview,
   ControlSurfaceTimelineEvent,
   OutboxMetrics,
@@ -125,6 +127,55 @@ type ImpactReportResponse = {
   }
 }
 
+const maturityLanes: MaturityLane[] = [
+  {
+    label: 'CI wedge',
+    state: 'production_ready',
+    detail: 'Pre-execution CI authorization, proof attachment, and canonical decision persistence are live.',
+  },
+  {
+    label: 'Control surface',
+    state: 'strongest_today',
+    detail: 'The operator lane is strongest today for live decision review, provider posture, and replay inspection.',
+  },
+  {
+    label: 'Proof / replay',
+    state: 'strongest_today',
+    detail: 'Trace-backed replay and exportable proof packets are part of the current evaluation surface.',
+  },
+  {
+    label: 'Doctrine / governance',
+    state: 'roadmap',
+    detail: 'Governance is active now, with richer public explanation and trust surfaces being expanded carefully.',
+  },
+  {
+    label: 'Runtime adapters',
+    state: 'experimental',
+    detail: 'The adapter plane is real, but runtime-specific rollout breadth still varies by environment and wedge.',
+  },
+]
+
+const buyerScenarios: BuyerScenario[] = [
+  {
+    title: 'CI build authorization before expensive compute starts',
+    workloadClass: 'interactive',
+    operatorOutcome: 'The control plane authorizes or delays the build before runner spend begins.',
+    proofPosture: 'Decision frame, trust posture, and replay stay attached to the same CI event.',
+  },
+  {
+    title: 'Regulated workload placement under water and policy constraints',
+    workloadClass: 'regulated',
+    operatorOutcome: 'The engine reroutes or blocks execution if the admissible region fails the doctrine.',
+    proofPosture: 'Policy precedence, rejected alternatives, and trust degradation are exportable.',
+  },
+  {
+    title: 'Critical or emergency workload protection under latency pressure',
+    workloadClass: 'critical',
+    operatorOutcome: 'Latency/SLA protections remain explicit while the system still records why cleaner paths lost.',
+    proofPosture: 'Counterfactual conditions and fallback posture stay visible instead of becoming hidden operator lore.',
+  },
+]
+
 function toSourceMode(decision: DecisionRow): 'live' | 'mirrored' | 'fallback' {
   if (decision.fallbackUsed) return 'fallback'
   const sourceUsed = String((decision.metadata?.response as Record<string, unknown> | undefined)?.['source_used'] ?? '')
@@ -142,11 +193,16 @@ function buildDecisionSummary(decision: DecisionRow): ControlSurfaceDecisionSumm
       : decision.jobType === 'light'
         ? 'Light CI verification'
         : 'CI execution frame'
+  const response = (decision.metadata?.response as Record<string, any> | undefined) ?? undefined
+  const workloadClass =
+    ((typeof response?.workloadClass === 'string' ? response.workloadClass : undefined) ??
+      'interactive') as ControlSurfaceDecisionSummary['workloadClass']
 
   return {
     decisionFrameId: decision.decisionFrameId,
     createdAt: decision.createdAt,
     workloadLabel,
+    workloadClass,
     action,
     decisionMode: decision.decisionMode ?? 'runtime_authorization',
     reasonCode: decision.reasonCode,
@@ -173,6 +229,8 @@ function buildDecisionSummary(decision: DecisionRow): ControlSurfaceDecisionSumm
     proofHash:
       decision.proofHash ??
       String((decision.metadata?.response as Record<string, unknown> | undefined)?.['proofHash'] ?? 'unavailable'),
+    decisionExplanation: response?.decisionExplanation ?? null,
+    decisionTrust: response?.decisionTrust ?? null,
     latencyMs: decision.latencyMs ?? null,
     summaryReason: action === 'delay'
       ? 'Held for a safer carbon-water window'
@@ -550,6 +608,8 @@ export async function GET() {
       actionDistribution,
       providers,
       scenarioPreviews,
+      maturity: maturityLanes,
+      buyerScenarios,
       timeline,
       metrics: {
         fallbackRate: metrics.fallbackRate,
