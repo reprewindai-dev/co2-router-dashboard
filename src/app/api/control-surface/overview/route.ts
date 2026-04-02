@@ -117,6 +117,14 @@ type MetricsResponse = {
   fallbackRate: number
 }
 
+type ImpactReportResponse = {
+  summary?: {
+    totals?: {
+      decisionCount?: number
+    }
+  }
+}
+
 function toSourceMode(decision: DecisionRow): 'live' | 'mirrored' | 'fallback' {
   if (decision.fallbackUsed) return 'fallback'
   const sourceUsed = String((decision.metadata?.response as Record<string, unknown> | undefined)?.['source_used'] ?? '')
@@ -454,11 +462,12 @@ async function getReplayBundle(decisions: DecisionFeed['decisions']) {
 export async function GET() {
   const startedAt = performance.now()
   try {
-    const [health, slo, ledger, metrics, decisionFeed] = await Promise.all([
+    const [health, slo, ledger, metrics, impactReport, decisionFeed] = await Promise.all([
       fetchEngineJson<CiHealthSnapshot>('/ci/health'),
       fetchEngineJson<CiSloSnapshot>('/ci/slo'),
       fetchEngineJson<LedgerSummary>('/dashboard/carbon-ledger-summary?days=30'),
       fetchEngineJson<MetricsResponse>('/dashboard/metrics?window=24h'),
+      fetchEngineJson<ImpactReportResponse>('/dashboard/impact-report?window=30d'),
       fetchEngineJson<DecisionFeed>('/ci/decisions?limit=12'),
     ])
 
@@ -514,6 +523,8 @@ export async function GET() {
 
     const delayedDecisions = actionDistribution.find((item) => item.action === 'delay')?.count ?? 0
     const featuredDecision = chooseFeaturedDecision(liveDecision, decisions)
+    const totalDecisionWindowCount =
+      impactReport.summary?.totals?.decisionCount ?? ledger.totalJobsRouted
 
     const overview: ControlSurfaceOverview = {
       generatedAt: new Date().toISOString(),
@@ -525,7 +536,7 @@ export async function GET() {
         } | Current ${slo.current.totalMs.toFixed(0)}ms | Rolling p95 ${slo.p95.totalMs.toFixed(0)}ms`,
       },
       impact: {
-        totalDecisions: ledger.totalJobsRouted,
+        totalDecisions: totalDecisionWindowCount,
         carbonAvoidedKg: ledger.carbonAvoidedPeriodKg,
         carbonReductionMultiplier: ledger.carbonReductionMultiplier,
         waterShiftedLiters,
@@ -601,3 +612,5 @@ export async function GET() {
     )
   }
 }
+
+
