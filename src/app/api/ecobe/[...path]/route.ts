@@ -52,24 +52,7 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
       `/api/control-surface/${path.slice(1).map(encodeURIComponent).join('/')}${url.search}`,
       url.origin
     )
-    const headers: Record<string, string> = {}
-    for (const header of FORWARDED_HEADERS) {
-      const value = request.headers.get(header)
-      if (value) headers[header] = value
-    }
-    const bodyBuffer =
-      ['GET', 'HEAD'].includes(request.method) ? undefined : Buffer.from(await request.arrayBuffer())
-    const upstream = await fetch(localTarget, {
-      method: request.method,
-      headers,
-      body: bodyBuffer,
-      cache: 'no-store',
-      redirect: 'manual',
-    })
-    const response = new NextResponse(await upstream.arrayBuffer(), {
-      status: upstream.status,
-      headers: upstream.headers,
-    })
+    const response = NextResponse.redirect(localTarget, { status: 307 })
     response.headers.set('x-ecobe-proxy-mode', 'dashboard_local')
     return response
   }
