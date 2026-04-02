@@ -59,25 +59,16 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
     }
     const bodyBuffer =
       ['GET', 'HEAD'].includes(request.method) ? undefined : Buffer.from(await request.arrayBuffer())
-    const upstream = await axios.request<ArrayBuffer>({
-      url: localTarget.toString(),
-      method: request.method as
-        | 'GET'
-        | 'POST'
-        | 'PUT'
-        | 'PATCH'
-        | 'DELETE'
-        | 'HEAD'
-        | 'OPTIONS',
+    const upstream = await fetch(localTarget, {
+      method: request.method,
       headers,
-      data: bodyBuffer,
-      responseType: 'arraybuffer',
-      validateStatus: () => true,
-      maxRedirects: 0,
+      body: bodyBuffer,
+      cache: 'no-store',
+      redirect: 'manual',
     })
-    const response = new NextResponse(upstream.data, {
+    const response = new NextResponse(await upstream.arrayBuffer(), {
       status: upstream.status,
-      headers: upstream.headers as HeadersInit,
+      headers: upstream.headers,
     })
     response.headers.set('x-ecobe-proxy-mode', 'dashboard_local')
     return response
