@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight, Check, Dot, Orbit, Sparkles } from 'lucide-react'
 
@@ -29,6 +30,12 @@ export const metadata: Metadata = createPageMetadata({
     'environmental workload authorization',
   ],
 })
+
+const pilotRailSignals = [
+  'Binding actions before workloads start',
+  'Trace, replay, and proof remain attached to the same frame',
+  'Scoped pilot lane now, operator reel can slot in later without changing the layout',
+] as const
 
 export default function DesignPartnersPage() {
   return (
@@ -96,6 +103,38 @@ export default function DesignPartnersPage() {
             <p className="mt-4 text-sm leading-7 text-slate-300">
               {designPartnerPageCopy.posterDetail}
             </p>
+
+            <div className="mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-black/50">
+              <div className="relative aspect-[16/10]">
+                <Image
+                  src="/blog/co2-router/co2routerslide12.png"
+                  alt="CO2 Router control plane preview"
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 420px, 100vw"
+                  priority
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/65 to-transparent p-4">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
+                    Control Surface Preview
+                  </div>
+                  <div className="mt-2 max-w-sm text-sm leading-6 text-slate-200">
+                    The pilot lane now shows a live control-plane visual instead of dead space. This frame can later swap cleanly to a short operator walkthrough video without reworking the page.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3">
+              {pilotRailSignals.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[20px] border border-white/8 bg-white/[0.035] px-4 py-3 text-sm leading-6 text-slate-300"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
 
             <div className="mt-6 space-y-4 border-t border-white/10 pt-5">
               {designPartnerTimeline.map((item) => (
