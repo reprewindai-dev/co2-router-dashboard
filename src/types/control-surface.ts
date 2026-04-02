@@ -1,3 +1,5 @@
+import type { CertifiedClaim } from '@/lib/claims'
+
 export type ControlAction = 'run_now' | 'reroute' | 'delay' | 'throttle' | 'deny'
 export type WorkloadClass = 'batch' | 'interactive' | 'critical' | 'regulated' | 'emergency'
 
@@ -560,6 +562,10 @@ export interface LiveSystemSnapshot {
 
 export interface ControlSurfaceOverview {
   generatedAt: string
+  certification: {
+    generatedAt: string
+    featuredClaims: CertifiedClaim[]
+  }
   service: {
     status: string
     proofPosture: string

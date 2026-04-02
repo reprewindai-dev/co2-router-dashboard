@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 
+import {
+  CLAIM_REGISTRY_GENERATED_AT,
+  getFeaturedClaimsForSurface,
+} from '@/lib/claims'
 import { fetchEngineJson, hasInternalApiKey } from '@/lib/control-surface/engine'
+import { publicMaturityLanes } from '@/lib/control-surface/maturity'
 import {
   dashboardTelemetryMetricNames,
   recordDashboardMetric,
@@ -15,7 +20,6 @@ import type {
   ControlSurfaceDecisionSummary,
   ControlSurfaceOverview,
   ControlSurfaceProviderNode,
-  MaturityLane,
   ScenarioPreview,
   ControlSurfaceTimelineEvent,
   OutboxMetrics,
@@ -126,34 +130,6 @@ type ImpactReportResponse = {
     }
   }
 }
-
-const maturityLanes: MaturityLane[] = [
-  {
-    label: 'CI wedge',
-    state: 'production_ready',
-    detail: 'Pre-execution CI authorization, proof attachment, and canonical decision persistence are live.',
-  },
-  {
-    label: 'Control surface',
-    state: 'strongest_today',
-    detail: 'The operator lane is strongest today for live decision review, provider posture, and replay inspection.',
-  },
-  {
-    label: 'Proof / replay',
-    state: 'strongest_today',
-    detail: 'Trace-backed replay and exportable proof packets are part of the current evaluation surface.',
-  },
-  {
-    label: 'Doctrine / governance',
-    state: 'roadmap',
-    detail: 'Governance is active now, with richer public explanation and trust surfaces being expanded carefully.',
-  },
-  {
-    label: 'Runtime adapters',
-    state: 'experimental',
-    detail: 'The adapter plane is real, but runtime-specific rollout breadth still varies by environment and wedge.',
-  },
-]
 
 const buyerScenarios: BuyerScenario[] = [
   {
@@ -586,6 +562,10 @@ export async function GET() {
 
     const overview: ControlSurfaceOverview = {
       generatedAt: new Date().toISOString(),
+      certification: {
+        generatedAt: CLAIM_REGISTRY_GENERATED_AT,
+        featuredClaims: getFeaturedClaimsForSurface('console'),
+      },
       service: {
         status: health.status,
         proofPosture: replay?.persisted || replay?.deterministicMatch ? 'Replayable proof live' : 'Live proof sample',
@@ -608,7 +588,7 @@ export async function GET() {
       actionDistribution,
       providers,
       scenarioPreviews,
-      maturity: maturityLanes,
+      maturity: publicMaturityLanes,
       buyerScenarios,
       timeline,
       metrics: {

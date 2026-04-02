@@ -1,5 +1,6 @@
 'use client'
 
+import { formatClaimForPublication, getFeaturedClaimsForSurface } from '@/lib/claims'
 import { DecisionFlowDiagram } from '@/components/DecisionFlowDiagram'
 import { ActionStrip } from '@/components/landing/ActionStrip'
 import { CategoryDifferenceSection } from '@/components/landing/CategoryDifferenceSection'
@@ -15,6 +16,7 @@ import { useControlSurfaceOverview } from '@/lib/hooks/control-surface'
 export default function LandingPage() {
   const overviewQuery = useControlSurfaceOverview()
   const overview = overviewQuery.data
+  const homepageClaims = getFeaturedClaimsForSurface('homepage')
 
   if (overviewQuery.isLoading) {
     return (
@@ -190,6 +192,82 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 sm:p-8">
+        <div className="grid gap-8 lg:grid-cols-[0.92fr_1.08fr]">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">
+              Certified proof points
+            </div>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
+              Visible power, visible discipline.
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-slate-300 sm:text-base">
+              These are the claims the product is currently willing to certify in public. Anything
+              weaker stays labeled or blocked until the runtime and evidence pack can carry it.
+            </p>
+
+            <div className="mt-6 rounded-[24px] border border-white/8 bg-slate-950/55 p-5">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Why this matters now
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    title: 'Deterministic control',
+                    body: 'The system decides before execution, not after spend and environmental impact already landed.',
+                  },
+                  {
+                    title: 'Proof and replay',
+                    body: 'Each important decision keeps its evidence, trace, and replay posture attached to the same governed frame.',
+                  },
+                  {
+                    title: 'Multi-objective enforcement',
+                    body: 'Carbon, water, latency, cost, and policy are evaluated together under one doctrine instead of separate reporting lanes.',
+                  },
+                  {
+                    title: 'Real-time authority',
+                    body: 'Operators can see fallback, degraded trust, and replay posture directly instead of relying on hidden operator lore.',
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4"
+                  >
+                    <div className="text-sm font-semibold text-white">{item.title}</div>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">{item.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            {homepageClaims.map((claim) => (
+              <article
+                key={claim.id}
+                className="rounded-[22px] border border-white/8 bg-slate-950/58 p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-300">
+                    {claim.status}
+                  </div>
+                  <div className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                    {claim.evidenceSource}
+                  </div>
+                </div>
+                <h3 className="mt-3 text-lg font-semibold text-white">
+                  {formatClaimForPublication(claim)}
+                </h3>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{claim.support}</p>
+                {claim.freshnessRule ? (
+                  <div className="mt-3 text-xs leading-6 text-slate-500">{claim.freshnessRule}</div>
+                ) : null}
+              </article>
+            ))}
           </div>
         </div>
       </section>

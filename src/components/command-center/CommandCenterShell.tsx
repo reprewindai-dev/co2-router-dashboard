@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 
 import { ACTION_META } from '@/components/control-surface/action-styles'
+import { CommandCenterTruthRail } from '@/components/command-center/CommandCenterTruthRail'
 import {
   useCommandCenterSnapshot,
   useDecisionTrace,
@@ -1174,6 +1175,11 @@ export function CommandCenterShell() {
   return (
     <div className="space-y-5">
       <GlobalCommandHeader snapshot={snapshot} selectedTrace={selectedTrace} selectedReplay={selectedReplay} />
+      <CommandCenterTruthRail
+        selectedDecision={selectedDecision}
+        selectedTrace={selectedTrace}
+        selectedReplay={selectedReplay}
+      />
       <ProjectionFreshnessBanner projection={snapshot.projection} />
 
       <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">

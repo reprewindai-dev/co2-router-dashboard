@@ -25,6 +25,10 @@ function shouldUseInternalKey(path: string[]) {
   )
 }
 
+function isDashboardControlSurfacePath(path: string[]) {
+  return path[0] === 'control-surface' && path.length >= 2
+}
+
 function getDecisionApiSignatureSecret() {
   return (
     process.env.DECISION_API_SIGNATURE_SECRET ||
@@ -42,8 +46,44 @@ function signDecisionBody(body: Buffer) {
 async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] }> }) {
   const { path = [] } = await ctx.params
 
-  const engineBaseUrl = getEngineBaseUrl().replace(/\/$/, '')
   const url = new URL(request.url)
+  if (isDashboardControlSurfacePath(path)) {
+    const localTarget = new URL(
+      `/api/control-surface/${path.slice(1).map(encodeURIComponent).join('/')}${url.search}`,
+      url.origin
+    )
+    const headers: Record<string, string> = {}
+    for (const header of FORWARDED_HEADERS) {
+      const value = request.headers.get(header)
+      if (value) headers[header] = value
+    }
+    const bodyBuffer =
+      ['GET', 'HEAD'].includes(request.method) ? undefined : Buffer.from(await request.arrayBuffer())
+    const upstream = await axios.request<ArrayBuffer>({
+      url: localTarget.toString(),
+      method: request.method as
+        | 'GET'
+        | 'POST'
+        | 'PUT'
+        | 'PATCH'
+        | 'DELETE'
+        | 'HEAD'
+        | 'OPTIONS',
+      headers,
+      data: bodyBuffer,
+      responseType: 'arraybuffer',
+      validateStatus: () => true,
+      maxRedirects: 0,
+    })
+    const response = new NextResponse(upstream.data, {
+      status: upstream.status,
+      headers: upstream.headers as HeadersInit,
+    })
+    response.headers.set('x-ecobe-proxy-mode', 'dashboard_local')
+    return response
+  }
+
+  const engineBaseUrl = getEngineBaseUrl().replace(/\/$/, '')
   const useInternalKey = shouldUseInternalKey(path)
 
   const targetUrl = new URL(

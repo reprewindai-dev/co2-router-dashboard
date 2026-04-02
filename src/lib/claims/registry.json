@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-04-02T12:00:00.000Z",
+  "claims": [
+    {
+      "id": "historical_latency_77ms",
+      "claim": "77ms p95 total decision latency",
+      "status": "VERIFY",
+      "support": "Archived evidence number no longer matches the current certified live SLO window.",
+      "evidenceSource": "Historical live sample referenced in older materials.",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Do not publish until a current evidence pack reproduces this exact figure."
+    },
+    {
+      "id": "current_total_budget_live",
+      "claim": "The live engine is currently operating inside the 100ms total p95 contract.",
+      "status": "SAFE",
+      "support": "The current certification run shows the live engine operating inside the total-latency contract.",
+      "evidenceSource": "Live engine SLO endpoint",
+      "allowedSurfaces": ["console", "investor", "technical", "docs"],
+      "requiredQualifier": null,
+      "freshnessRule": "Point-in-time certification. Refresh from the live SLO endpoint before reusing in a new evidence pack."
+    },
+    {
+      "id": "historical_compute_59ms",
+      "claim": "59ms p95 compute latency",
+      "status": "VERIFY",
+      "support": "Archived evidence number no longer matches the current certified live compute window.",
+      "evidenceSource": "Historical live sample referenced in older materials.",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Do not publish until a current evidence pack reproduces this exact figure."
+    },
+    {
+      "id": "current_compute_budget_live",
+      "claim": "The live engine is currently operating inside the 60ms compute p95 contract with a 58ms internal target.",
+      "status": "SAFE",
+      "support": "The current certification run shows the live engine staying below both the public compute contract and the tighter internal operating target.",
+      "evidenceSource": "Live engine SLO endpoint",
+      "allowedSurfaces": ["console", "investor", "technical", "docs"],
+      "requiredQualifier": null,
+      "freshnessRule": "Point-in-time certification. Refresh from the live SLO endpoint before reusing in a new evidence pack."
+    },
+    {
+      "id": "historical_confidence_88",
+      "claim": "88% confidence score on a real decision",
+      "status": "VERIFY",
+      "support": "The current certified example decision is 87.5%, not an exact 88%.",
+      "evidenceSource": "Live latest decision frame",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Do not publish until the exact 88% figure is attached to a current decision frame."
+    },
+    {
+      "id": "current_confidence_example",
+      "claim": "The current example decision carries a high-confidence score.",
+      "status": "SAFE",
+      "support": "The current example frame exposes a high-confidence live decision instead of hiding uncertainty behind vague confidence theater.",
+      "evidenceSource": "Live latest decision frame",
+      "allowedSurfaces": ["console", "investor", "technical", "docs"],
+      "requiredQualifier": "example decision",
+      "freshnessRule": "Example-decision claim. Refresh whenever the featured frame changes."
+    },
+    {
+      "id": "historical_carbon_2",
+      "claim": "2 gCO2/kWh on the live routed region",
+      "status": "VERIFY",
+      "support": "The current certified example decision is no longer at 2 gCO2/kWh.",
+      "evidenceSource": "Historical live proof record",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Do not publish until the exact 2 gCO2/kWh figure is re-captured in a current evidence pack."
+    },
+    {
+      "id": "current_carbon_example",
+      "claim": "The current example decision exposes routed-region carbon intensity directly in the proof envelope.",
+      "status": "SAFE",
+      "support": "The current example frame exposes routed-region carbon intensity directly in the same proof surface as the action and policy trace.",
+      "evidenceSource": "Live latest decision frame",
+      "allowedSurfaces": ["console", "investor", "technical", "docs"],
+      "requiredQualifier": "example decision",
+      "freshnessRule": "Example-decision claim. Refresh whenever the featured frame changes."
+    },
+    {
+      "id": "historical_water_1_13",
+      "claim": "1.13 L water on the live decision",
+      "status": "VERIFY",
+      "support": "The current certified example decision is no longer at 1.13 L.",
+      "evidenceSource": "Historical live proof record",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Do not publish until the exact 1.13 L figure is re-captured in a current evidence pack."
+    },
+    {
+      "id": "current_water_example",
+      "claim": "The current example decision exposes estimated water impact directly in the proof envelope.",
+      "status": "LABEL",
+      "support": "The current example frame exposes estimated water impact directly in the same proof surface as the action and policy trace.",
+      "evidenceSource": "Live latest decision frame",
+      "allowedSurfaces": ["console", "technical", "docs"],
+      "requiredQualifier": "estimated example decision",
+      "freshnessRule": "Water figures must remain labeled as estimated unless the referenced decision is explicitly published with current authority freshness."
+    },
+    {
+      "id": "proof_hash_per_decision",
+      "claim": "Every decision carries a SHA-256 proof hash.",
+      "status": "SAFE",
+      "support": "Proof hash is present in the live response contract, trace surface, replay surface, and persisted decision metadata.",
+      "evidenceSource": "Live control surfaces and production code",
+      "allowedSurfaces": ["homepage", "console", "roadmap", "investor", "technical", "docs", "sales"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "five_binding_actions",
+      "claim": "CO2 Router returns five binding actions: run_now, reroute, delay, throttle, and deny.",
+      "status": "SAFE",
+      "support": "The live decision contract and public control surface both expose the same five-action set.",
+      "evidenceSource": "Live runtime contract and dashboard control surface",
+      "allowedSurfaces": ["homepage", "console", "roadmap", "investor", "technical", "docs", "sales"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "policy_order_precedes_carbon",
+      "claim": "Policy is evaluated before carbon optimization, with cost used only as a tie-breaker inside the allowed envelope.",
+      "status": "SAFE",
+      "support": "The live decision hierarchy and conflict ordering expose policy-first evaluation before carbon optimization and cost tie-breaking.",
+      "evidenceSource": "Live decision hierarchy and doctrine contract",
+      "allowedSurfaces": ["homepage", "console", "roadmap", "investor", "technical", "docs", "sales"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "saiq_framework",
+      "claim": "SAIQ means Signal -> Arbitration -> Integrity -> Quality.",
+      "status": "SAFE",
+      "support": "The governance framework is active in the canonical engine and surfaced publicly in operator-facing materials.",
+      "evidenceSource": "Production governance contract and public doctrine docs",
+      "allowedSurfaces": ["homepage", "console", "roadmap", "investor", "technical", "docs"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "replay_verified_decisions",
+      "claim": "Replay verifies whether the engine still reaches the same governed result from stored inputs.",
+      "status": "SAFE",
+      "support": "Replay surfaces are live, proof packets export replay state, and deterministic-match status is exposed in operator views.",
+      "evidenceSource": "Live trace and replay routes",
+      "allowedSurfaces": ["homepage", "console", "roadmap", "investor", "technical", "docs", "sales"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "kubernetes_admission_bundle",
+      "claim": "CO2 Router emits a Kubernetes admission-ready enforcement bundle.",
+      "status": "SAFE",
+      "support": "The canonical engine produces kubernetes enforcement plans and exposes them through the CI response contract.",
+      "evidenceSource": "Production code and CI response contract",
+      "allowedSurfaces": ["console", "investor", "technical", "docs", "sales"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "historical_watttime_33_26",
+      "claim": "WattTime MOER: 33 observations, 26s freshness",
+      "status": "VERIFY",
+      "support": "The current live provider snapshot no longer matches this exact observation count or freshness value.",
+      "evidenceSource": "Historical provider snapshot",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Do not publish exact point-in-time provider figures unless they are attached to the current certification run."
+    },
+    {
+      "id": "current_watttime_fresh",
+      "claim": "WattTime MOER is currently healthy with sub-minute freshness.",
+      "status": "SAFE",
+      "support": "The current certification run shows WattTime MOER as healthy inside the sub-minute freshness window.",
+      "evidenceSource": "Live provider-trust endpoint",
+      "allowedSurfaces": ["console", "technical", "docs"],
+      "requiredQualifier": "point-in-time snapshot",
+      "freshnessRule": "Refresh on every certification run before reusing exact provider freshness numbers."
+    },
+    {
+      "id": "historical_prisma_35_11",
+      "claim": "35+ Prisma models, 11 migrations",
+      "status": "VERIFY",
+      "support": "The canonical schema and migration tree have grown beyond this exact footprint.",
+      "evidenceSource": "Historical codebase count",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Do not publish exact codebase counts unless they are re-counted against the current repo."
+    },
+    {
+      "id": "current_prisma_47_14",
+      "claim": "47 Prisma models and 14 migrations in the canonical engine.",
+      "status": "SAFE",
+      "support": "Current repo count shows 47 Prisma models and 14 migration directories.",
+      "evidenceSource": "Canonical repo count",
+      "allowedSurfaces": ["technical", "docs", "investor"],
+      "requiredQualifier": null,
+      "freshnessRule": "Refresh on every certification run before reusing exact repo counts."
+    },
+    {
+      "id": "eia_930_ingestion",
+      "claim": "EIA-930 ingestion is scheduled on a 15-minute cadence.",
+      "status": "SAFE",
+      "support": "The canonical engine retains a 15-minute ingestion contract for EIA-930 collection.",
+      "evidenceSource": "Canonical engine scheduler code",
+      "allowedSurfaces": ["technical", "docs"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "billing_non_blocking",
+      "claim": "Billing failure does not block routing.",
+      "status": "SAFE",
+      "support": "Routing and decision persistence remain independent from billing state and payment-side failure handling.",
+      "evidenceSource": "Production architecture and live commerce behavior",
+      "allowedSurfaces": ["homepage", "console", "investor", "technical", "docs", "sales"],
+      "requiredQualifier": null,
+      "freshnessRule": null
+    },
+    {
+      "id": "carbon_forecast_variance_target",
+      "claim": "Carbon forecast variance <= 12%.",
+      "status": "LABEL",
+      "support": "This remains a design target rather than an externally validated long-run accuracy figure.",
+      "evidenceSource": "Doctrine and product target",
+      "allowedSurfaces": ["technical", "docs"],
+      "requiredQualifier": "design target",
+      "freshnessRule": null
+    },
+    {
+      "id": "clean_window_detection_target",
+      "claim": "Clean window detection >= 85%.",
+      "status": "LABEL",
+      "support": "This remains a design target rather than a currently published benchmark.",
+      "evidenceSource": "Doctrine and product target",
+      "allowedSurfaces": ["technical", "docs"],
+      "requiredQualifier": "design target",
+      "freshnessRule": null
+    },
+    {
+      "id": "provider_disagreement_detection_target",
+      "claim": "Provider disagreement detection >= 95%.",
+      "status": "LABEL",
+      "support": "The disagreement path exists, but this exact accuracy claim is still a target and not a released benchmark.",
+      "evidenceSource": "Provider trust contract and product target",
+      "allowedSurfaces": ["technical", "docs"],
+      "requiredQualifier": "design target",
+      "freshnessRule": null
+    },
+    {
+      "id": "confidence_calibration_error_target",
+      "claim": "Confidence calibration error <= 10%.",
+      "status": "LABEL",
+      "support": "This remains an analytical target rather than a published validated metric.",
+      "evidenceSource": "Modeling target",
+      "allowedSurfaces": ["technical", "docs"],
+      "requiredQualifier": "design target",
+      "freshnessRule": null
+    },
+    {
+      "id": "csrd_ready_records",
+      "claim": "Designed for per-workload CSRD-ready records.",
+      "status": "LABEL",
+      "support": "The architecture is designed for CSRD-facing evidence, but auditor verification is still required before claiming formal compliance.",
+      "evidenceSource": "Architecture and evidence pack design",
+      "allowedSurfaces": ["roadmap", "investor", "technical", "docs", "sales"],
+      "requiredQualifier": "designed for",
+      "freshnessRule": null
+    },
+    {
+      "id": "tam_600b_estimate",
+      "claim": "$600B+ addressable market for an execution-governance layer.",
+      "status": "LABEL",
+      "support": "This remains an investor estimate derived from broader cloud market sizing rather than a hard audited TAM figure.",
+      "evidenceSource": "Investor estimate",
+      "allowedSurfaces": ["investor", "docs"],
+      "requiredQualifier": "estimate",
+      "freshnessRule": null
+    },
+    {
+      "id": "zero_jobs_today",
+      "claim": "0 jobs processed today.",
+      "status": "VERIFY",
+      "support": "This claim is blocked because current live decision counts must be treated as operational data, not static publication copy.",
+      "evidenceSource": "Deprecated dashboard state",
+      "allowedSurfaces": [],
+      "requiredQualifier": null,
+      "freshnessRule": "Blocked from publication unless deliberately re-verified as a truthful operational statement."
+    }
+  ]
+}
