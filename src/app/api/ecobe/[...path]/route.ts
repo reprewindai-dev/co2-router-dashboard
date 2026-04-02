@@ -48,11 +48,16 @@ async function proxy(request: Request, ctx: { params: Promise<{ path?: string[] 
 
   const url = new URL(request.url)
   if (isDashboardControlSurfacePath(path)) {
-    const localTarget = new URL(
-      `/api/control-surface/${path.slice(1).map(encodeURIComponent).join('/')}${url.search}`,
-      url.origin
-    )
-    const response = NextResponse.redirect(localTarget, { status: 307 })
+    const relativeTarget = `/api/control-surface/${path
+      .slice(1)
+      .map(encodeURIComponent)
+      .join('/')}${url.search}`
+    const response = new NextResponse(null, {
+      status: 307,
+      headers: {
+        location: relativeTarget,
+      },
+    })
     response.headers.set('x-ecobe-proxy-mode', 'dashboard_local')
     return response
   }
