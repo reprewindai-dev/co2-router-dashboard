@@ -1,13 +1,12 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { blogPosts, getBlogPost } from '@/lib/blog/posts'
+import { formatBlogPostDate, getBlogPost, getBlogPostOgImage } from '@/lib/blog/posts'
 import { defaultOgImage, siteName, siteUrl } from '@/lib/seo'
 
-export async function generateStaticParams() {
-  return blogPosts.map((post) => ({ slug: post.slug }))
-}
+export const dynamic = 'force-dynamic'
 
 export async function generateMetadata({
   params,
@@ -23,6 +22,8 @@ export async function generateMetadata({
 
   const path = `/blog/${post.slug}`
   const url = `${siteUrl}${path}`
+  const ogImage = getBlogPostOgImage(post)
+  const publishedAt = post.releaseAt ?? post.publishedAt
 
   return {
     title: post.title,
@@ -37,10 +38,10 @@ export async function generateMetadata({
       title: post.title,
       description: post.description,
       url,
-      publishedTime: post.publishedAt,
+      publishedTime: publishedAt,
       images: [
         {
-          url: defaultOgImage,
+          url: ogImage ? `${siteUrl}${ogImage}` : defaultOgImage,
           width: 1200,
           height: 630,
           alt: post.title,
@@ -51,7 +52,7 @@ export async function generateMetadata({
       card: 'summary_large_image',
       title: post.title,
       description: post.description,
-      images: [defaultOgImage],
+      images: [ogImage ? `${siteUrl}${ogImage}` : defaultOgImage],
     },
   }
 }
@@ -68,13 +69,15 @@ export default async function BlogPostPage({
     notFound()
   }
 
+  const publishedAt = post.releaseAt ?? post.publishedAt
+
   const articleSchema = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
     headline: post.title,
     description: post.description,
-    datePublished: post.publishedAt,
-    dateModified: post.publishedAt,
+    datePublished: publishedAt,
+    dateModified: publishedAt,
     author: {
       '@type': 'Organization',
       name: siteName,
@@ -98,7 +101,7 @@ export default async function BlogPostPage({
         <div className="max-w-4xl">
           <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.22em] text-emerald-300">
             <span>Blog</span>
-            <span className="text-slate-500">{post.publishedAt}</span>
+            <span className="text-slate-500">{formatBlogPostDate(post)}</span>
             <span className="text-slate-500">{post.readTime}</span>
           </div>
           <h1 className="mt-4 text-4xl font-black tracking-[-0.05em] text-white sm:text-5xl lg:text-6xl">
@@ -107,6 +110,24 @@ export default async function BlogPostPage({
           <p className="mt-5 max-w-3xl text-sm leading-8 text-slate-300 sm:text-base">
             {post.summary}
           </p>
+          {post.coverImage ? (
+            <figure className="mt-8 overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/70">
+              <div className="relative aspect-[16/9]">
+                <Image
+                  src={post.coverImage.src}
+                  alt={post.coverImage.alt}
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 960px, 100vw"
+                />
+              </div>
+              {post.coverImage.caption ? (
+                <figcaption className="border-t border-white/10 px-5 py-4 text-sm leading-7 text-slate-400">
+                  {post.coverImage.caption}
+                </figcaption>
+              ) : null}
+            </figure>
+          ) : null}
         </div>
       </section>
 
@@ -123,6 +144,24 @@ export default async function BlogPostPage({
                     <p key={paragraph}>{paragraph}</p>
                   ))}
                 </div>
+                {section.figure ? (
+                  <figure className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/70">
+                    <div className="relative aspect-[16/9]">
+                      <Image
+                        src={section.figure.src}
+                        alt={section.figure.alt}
+                        fill
+                        className="object-cover"
+                        sizes="(min-width: 1024px) 960px, 100vw"
+                      />
+                    </div>
+                    {section.figure.caption ? (
+                      <figcaption className="border-t border-white/10 px-5 py-4 text-sm leading-7 text-slate-400">
+                        {section.figure.caption}
+                      </figcaption>
+                    ) : null}
+                  </figure>
+                ) : null}
               </section>
             ))}
           </div>
@@ -130,7 +169,9 @@ export default async function BlogPostPage({
 
         <aside className="space-y-4">
           <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Related system pages</div>
+            <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
+              Related system pages
+            </div>
             <div className="mt-4 space-y-2">
               {post.relatedLinks.map((link) => (
                 <Link
@@ -145,7 +186,9 @@ export default async function BlogPostPage({
           </div>
 
           <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Category keywords</div>
+            <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
+              Category keywords
+            </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {post.keywords.map((keyword) => (
                 <span

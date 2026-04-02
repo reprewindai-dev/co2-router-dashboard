@@ -1,10 +1,13 @@
 import type { MetadataRoute } from 'next'
 
-import { blogPosts } from '@/lib/blog/posts'
+import { getPublishedBlogPosts } from '@/lib/blog/posts'
 import { coreSitePaths, siteUrl } from '@/lib/seo'
+
+export const revalidate = 900
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date()
+  const posts = getPublishedBlogPosts(now)
 
   const staticRoutes = coreSitePaths.map((path) => ({
     url: path === '/' ? siteUrl : `${siteUrl}${path}`,
@@ -13,9 +16,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: path === '/' ? 1 : path === '/console' || path === '/methodology' ? 0.9 : 0.7,
   })) satisfies MetadataRoute.Sitemap
 
-  const postRoutes = blogPosts.map((post) => ({
+  const postRoutes = posts.map((post) => ({
     url: `${siteUrl}/blog/${post.slug}`,
-    lastModified: new Date(post.publishedAt),
+    lastModified: new Date(post.releaseAt ?? post.publishedAt),
     changeFrequency: 'monthly',
     priority: 0.8,
   })) satisfies MetadataRoute.Sitemap
