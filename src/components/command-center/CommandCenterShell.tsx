@@ -48,6 +48,30 @@ const TABS = [
   ['proof', 'Proof', Lock],
 ] as const
 
+const WORLD_STATE_META: Record<
+  WorldRegionState['state'],
+  { label: string; color: string; rhythm: string; detail: string }
+> = {
+  active: {
+    label: 'Live',
+    color: A.run_now,
+    rhythm: 'Fast pulse',
+    detail: 'Region is healthy and ready for governed execution now.',
+  },
+  marginal: {
+    label: 'Guarded',
+    color: A.reroute,
+    rhythm: 'Slow pulse',
+    detail: 'Region remains usable, but the mirror is signaling caution.',
+  },
+  blocked: {
+    label: 'Blocked',
+    color: A.deny,
+    rhythm: 'Static hold',
+    detail: 'Region is constrained or denied by the current policy envelope.',
+  },
+}
+
 const hex = (c: string, o: number) => `${c}${Math.round(o * 255).toString(16).padStart(2, '0')}`
 
 const ago = (v: string) => {
@@ -386,35 +410,47 @@ function GlobePanel({
   nodes,
   flows,
   selectedRegion,
+  selectedFrame,
   projectionLagSec,
   streamHealthy,
   expanded,
+  onSelectRegion,
 }: {
   nodes: WorldRegionState[]
   flows: WorldRoutingFlow[]
   selectedRegion: string | null
+  selectedFrame: HallOGridFrame | null
   projectionLagSec: number | null
   streamHealthy: boolean
   expanded: boolean
+  onSelectRegion: (node: WorldRegionState) => void
 }) {
   const [rotation, setRotation] = useState(0)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-    if (media.matches) return
-
-    const interval = window.setInterval(() => {
-      setRotation((current) => (current + 0.65) % 360)
-    }, 40)
-
-    return () => window.clearInterval(interval)
+    const update = () => setReducedMotion(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
   }, [])
 
-  const globeSize = expanded ? 520 : 420
-  const radius = expanded ? 200 : 160
+  useEffect(() => {
+    if (typeof window === 'undefined' || reducedMotion) return
+
+    const interval = window.setInterval(() => {
+      setRotation((current) => (current + (selectedRegion ? 0.16 : expanded ? 0.2 : 0.12)) % 360)
+    }, 80)
+
+    return () => window.clearInterval(interval)
+  }, [expanded, reducedMotion, selectedRegion])
+
+  const globeSize = expanded ? 580 : 470
+  const radius = expanded ? 212 : 176
   const center = globeSize / 2
-  const glowRadius = radius + (expanded ? 10 : 8)
+  const glowRadius = radius + (expanded ? 8 : 6)
 
   const projected = useMemo<ProjectedNode[]>(() => {
     return nodes
@@ -450,6 +486,10 @@ function GlobePanel({
         if (!from || !to) return null
         if (from.depth < 0.02 || to.depth < 0.02) return null
 
+        const connectedToSelection =
+          selectedRegion != null &&
+          (flow.fromRegion === selectedRegion || flow.toRegion === selectedRegion)
+
         const controlX = (from.screenX + to.screenX) / 2
         const controlY =
           Math.min(from.screenY, to.screenY) -
@@ -460,19 +500,36 @@ function GlobePanel({
         return {
           id: flow.id,
           d: `M ${from.screenX} ${from.screenY} Q ${controlX} ${controlY} ${to.screenX} ${to.screenY}`,
-          color: flow.mode === 'blocked' ? A.deny : P.accent,
-          opacity: Math.min(from.opacity, to.opacity) * (flow.mode === 'blocked' ? 0.9 : 0.72),
+          color:
+            flow.mode === 'blocked'
+              ? A.deny
+              : connectedToSelection
+                ? '#dbeafe'
+                : hex(P.accent, 0.72),
+          opacity:
+            Math.min(from.opacity, to.opacity) *
+            (flow.mode === 'blocked' ? 0.82 : connectedToSelection ? 0.95 : 0.36),
+          width: connectedToSelection ? 2.2 : 1.1,
         }
       })
       .filter((item): item is NonNullable<typeof item> => item != null)
-  }, [flows, visibleByRegion])
+  }, [flows, selectedRegion, visibleByRegion])
 
   const activeCount = nodes.filter((node) => node.state === 'active').length
+  const marginalCount = nodes.filter((node) => node.state === 'marginal').length
   const blockedCount = nodes.filter((node) => node.state === 'blocked').length
   const selectedNode = selectedRegion ? nodes.find((node) => node.region === selectedRegion) ?? null : null
+  const selectedState = selectedNode ? WORLD_STATE_META[selectedNode.state] : null
+  const focusFlowCount = selectedRegion
+    ? flows.filter((flow) => flow.fromRegion === selectedRegion || flow.toRegion === selectedRegion).length
+    : 0
+  const actionableNodes = projected
+    .filter((item) => item.depth >= 0.02)
+    .sort((a, b) => b.depth - a.depth)
+  const frontLineNodes = actionableNodes.slice(0, 5)
 
   return (
-    <div style={{ padding: '18px 18px 16px', borderRadius: 24, background: `linear-gradient(180deg, ${hex(P.accent, 0.02)} 0%, ${hex(P.accent, 0.01)} 42%, ${hex('#020309', 0.92)} 76%, ${hex('#000000', 0.98)} 100%)`, border: `1px solid ${hex(P.accent, 0.12)}`, boxShadow: `0 24px 60px ${hex('#000000', 0.36)}` }}>
+    <div style={{ padding: '18px 18px 16px', borderRadius: 24, background: `linear-gradient(180deg, ${hex('#0a1220', 0.22)} 0%, ${hex('#07101a', 0.12)} 18%, ${hex('#020309', 0.94)} 66%, ${hex('#000000', 0.98)} 100%)`, border: `1px solid ${hex(P.accent, 0.12)}`, boxShadow: `0 24px 60px ${hex('#000000', 0.36)}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.12em', color: '#dbeafe' }}>
@@ -480,7 +537,7 @@ function GlobePanel({
             LIVE GRID THEATER
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>
-            Spinning world state with live routing lanes and selected-region emphasis.
+            Click a beacon or a frame. The globe locks onto region state, route pressure, and operator proof context.
           </div>
         </div>
         <div style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.2) : hex(A.reroute, 0.24)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
@@ -488,9 +545,9 @@ function GlobePanel({
         </div>
       </div>
 
-        <div style={{ marginTop: 16, display: expanded ? 'flex' : 'grid', flexDirection: expanded ? 'column' : undefined, gridTemplateColumns: expanded ? undefined : 'minmax(0, 1fr) 170px', gap: expanded ? 16 : 14, alignItems: 'center' }}>
-        <div style={{ position: 'relative', minHeight: expanded ? 440 : 320, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 38%,  0%,  46%,  100%)` }}>
-          <div style={{ position: 'absolute', inset: expanded ? 22 : 18, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 22%, rgba(7,12,22,0.1) 55%, rgba(4,6,8,0.94) 100%)', boxShadow: `inset 0 0 36px , 0 0 22px ` }} />
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ position: 'relative', minHeight: expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
+          <div style={{ position: 'absolute', inset: expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
           <svg viewBox={`0 0 ${globeSize} ${globeSize}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
             <defs>
               <filter id="hallogrid-flow-glow">
@@ -501,21 +558,21 @@ function GlobePanel({
                 </feMerge>
               </filter>
               <radialGradient id="hallogrid-globe-core" cx="50%" cy="50%" r="58%">
-                <stop offset="0%" stopColor="rgba(20,28,46,0.02)" />
-                <stop offset="45%" stopColor="rgba(8,12,24,0.06)" />
-                <stop offset="72%" stopColor="rgba(2,4,10,0.55)" />
-                <stop offset="100%" stopColor="rgba(0,1,4,0.9)" />
+                <stop offset="0%" stopColor="rgba(18,26,42,0.015)" />
+                <stop offset="36%" stopColor="rgba(8,12,20,0.04)" />
+                <stop offset="68%" stopColor="rgba(2,4,10,0.38)" />
+                <stop offset="100%" stopColor="rgba(0,1,4,0.94)" />
               </radialGradient>
               <radialGradient id="hallogrid-atmosphere" cx="50%" cy="50%" r="60%">
-                <stop offset="0%" stopColor="rgba(120,170,255,0.015)" />
-                <stop offset="55%" stopColor="rgba(80,120,220,0.05)" />
-                <stop offset="100%" stopColor="rgba(30,50,120,0.09)" />
+                <stop offset="0%" stopColor="rgba(120,170,255,0.006)" />
+                <stop offset="55%" stopColor="rgba(80,120,220,0.022)" />
+                <stop offset="100%" stopColor="rgba(30,50,120,0.055)" />
               </radialGradient>
             </defs>
             <circle cx={center} cy={center} r={glowRadius} fill="url(#hallogrid-atmosphere)" />
             <circle cx={center} cy={center} r={radius} fill="url(#hallogrid-globe-core)" />
-            <circle cx={center} cy={center} r={radius} fill="transparent" stroke={P.borderLit} strokeWidth="1.2" />
-            {[0.18, 0.32, 0.46, 0.6, 0.74].map((ratio, index) => (
+            <circle cx={center} cy={center} r={radius} fill="transparent" stroke={hex('#dbeafe', 0.14)} strokeWidth="1" />
+            {[0.14, 0.24, 0.34, 0.44, 0.54, 0.64, 0.74, 0.84].map((ratio, index) => (
               <ellipse
                 key={`lat-${ratio}`}
                 cx={center}
@@ -523,11 +580,11 @@ function GlobePanel({
                 rx={radius}
                 ry={radius * ratio}
                 fill="transparent"
-                stroke={hex(P.accent, 0.28 - index * 0.03)}
-                strokeWidth="0.8"
+                stroke={hex('#8fb8ff', Math.max(0.06, 0.18 - index * 0.014))}
+                strokeWidth="0.75"
               />
             ))}
-            {[0.18, 0.36, 0.54, 0.72].map((ratio, index) => (
+            {[0.12, 0.24, 0.36, 0.48, 0.6, 0.72, 0.84].map((ratio, index) => (
               <ellipse
                 key={`lon-${ratio}`}
                 cx={center}
@@ -535,56 +592,192 @@ function GlobePanel({
                 rx={radius * ratio}
                 ry={radius}
                 fill="transparent"
-                stroke={hex(P.accent, 0.24 - index * 0.03)}
-                strokeWidth="0.8"
-                transform={`rotate(${rotation * (0.25 + index * 0.06)} ${center} ${center})`}
+                stroke={hex('#8fb8ff', Math.max(0.05, 0.16 - index * 0.015))}
+                strokeWidth="0.7"
+                transform={`rotate(${rotation * (0.12 + index * 0.03)} ${center} ${center})`}
               />
             ))}
             {flowPaths.map((flow) => (
-              <path key={flow.id} d={flow.d} fill="none" stroke={flow.color} strokeOpacity={flow.opacity} strokeWidth={1.7} filter="url(#hallogrid-flow-glow)" />
+              <path key={flow.id} d={flow.d} fill="none" stroke={flow.color} strokeOpacity={flow.opacity} strokeWidth={flow.width} filter="url(#hallogrid-flow-glow)" />
             ))}
-            {projected.map((item) => {
+            {actionableNodes.map((item) => {
               const isSelected = item.node.region === selectedRegion
-              const isLive = item.node.state === 'active'
-              const isMarginal = item.node.state === 'marginal'
-              const beaconAnim = isLive ? 'hallogrid-beacon-fast 1.1s ease-in-out infinite' : isMarginal ? 'hallogrid-beacon-slow 2.6s ease-in-out infinite' : 'none'
               return (
-                <g key={item.node.region} opacity={item.opacity}>
-                  
+                <g key={item.node.region} opacity={Math.min(1, item.opacity + (isSelected ? 0.2 : 0))}>
                   <circle
                     cx={item.screenX}
                     cy={item.screenY}
-                    r={5 * item.scale}
+                    r={12 * item.scale}
+                    fill={hex(item.color, isSelected ? 0.16 : 0.08)}
+                    stroke="none"
+                    filter="url(#hallogrid-flow-glow)"
+                  />
+                  <circle
+                    cx={item.screenX}
+                    cy={item.screenY}
+                    r={6 * item.scale}
                     fill={item.color}
-                    stroke={isSelected ? "#ffffff" : hex(item.color, 0.6)}
+                    stroke={isSelected ? '#ffffff' : hex(item.color, 0.62)}
                     strokeWidth={isSelected ? 2 : 1}
                     filter="url(#hallogrid-flow-glow)"
-                    style={{ animation: beaconAnim }}
                   />
-                  
-                  
+                  {isSelected ? (
+                    <circle
+                      cx={item.screenX}
+                      cy={item.screenY}
+                      r={20 * item.scale}
+                      fill="transparent"
+                      stroke={hex('#dbeafe', 0.45)}
+                      strokeDasharray="4 6"
+                      strokeWidth="1.2"
+                    />
+                  ) : null}
                 </g>
               )
             })}
           </svg>
-          <div style={{ position: 'absolute', left: 16, bottom: 14, padding: '6px 10px', borderRadius: 999, background: hex('#000000', 0.38), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
-            {selectedNode ? `SELECTED ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}
+          {actionableNodes.map((item) => {
+            const stateMeta = WORLD_STATE_META[item.node.state]
+            const isSelected = item.node.region === selectedRegion
+            const beaconAnim =
+              reducedMotion
+                ? 'none'
+                : item.node.state === 'active'
+                  ? 'hallogrid-beacon-fast 1.4s ease-in-out infinite'
+                  : item.node.state === 'marginal'
+                    ? 'hallogrid-beacon-slow 2.8s ease-in-out infinite'
+                    : 'none'
+
+            return (
+              <button
+                key={item.node.region}
+                type="button"
+                onClick={() => onSelectRegion(item.node)}
+                style={{
+                  position: 'absolute',
+                  left: item.screenX,
+                  top: item.screenY,
+                  transform: 'translate(-50%, -50%)',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '999px',
+                  border: isSelected ? `1px solid ${hex('#dbeafe', 0.62)}` : `1px solid ${hex(stateMeta.color, 0.24)}`,
+                  background: isSelected ? hex('#dbeafe', 0.08) : 'transparent',
+                  boxShadow: isSelected ? `0 0 18px ${hex('#dbeafe', 0.16)}` : 'none',
+                  cursor: 'pointer',
+                  zIndex: Math.round((item.depth + 1) * 100),
+                }}
+                aria-label={`Focus ${item.node.label}`}
+                title={`${item.node.label}: ${stateMeta.label}`}
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    width: 10,
+                    height: 10,
+                    margin: '0 auto',
+                    borderRadius: '999px',
+                    background: stateMeta.color,
+                    boxShadow: `0 0 18px ${hex(stateMeta.color, 0.55)}`,
+                    animation: beaconAnim,
+                  }}
+                />
+              </button>
+            )
+          })}
+          <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
+            <span>{selectedNode ? `FOCUS ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}</span>
+            {selectedState ? <span style={{ color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
+          </div>
+          <div style={{ position: 'absolute', right: 16, bottom: 14, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: '#dbeafe' }}>
+            <span>{reducedMotion ? 'LOW MOTION' : 'LIVE ROTATION'}</span>
+            <span style={{ color: P.t2 }}>{Math.round(rotation)}deg</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: expanded ? 'row' : 'column', gap: 10, flexWrap: expanded ? 'wrap' : 'nowrap' }}>
-          <Block title="ROUTING PULSE">
-            <Row label="Active nodes" value={String(activeCount)} color={A.run_now} />
-            <Row label="Blocked nodes" value={String(blockedCount)} color={blockedCount > 0 ? A.deny : P.t2} />
-            <Row label="Route lanes" value={String(flows.length)} />
-            <Row label="Projection lag" value={projectionLagSec == null ? 'Unavailable' : `${projectionLagSec}s`} color={projectionLagSec != null && projectionLagSec > 60 ? A.reroute : P.t1} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+          <Block title="BEACON LEGEND">
+            {(['active', 'marginal', 'blocked'] as const).map((state) => {
+              const meta = WORLD_STATE_META[state]
+              return (
+                <div key={state} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '999px', background: meta.color, boxShadow: `0 0 14px ${hex(meta.color, 0.48)}` }} />
+                  <div>
+                    <div style={{ fontSize: 11, color: P.t1 }}>{meta.label}</div>
+                    <div style={{ fontSize: 10, color: P.t3 }}>{meta.detail}</div>
+                  </div>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: meta.color }}>{meta.rhythm}</div>
+                </div>
+              )
+            })}
           </Block>
-          <Block title="SELECTED REGION">
-            <div style={{ fontSize: 14, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'No frame selected'}</div>
+          <Block title="REGION FOCUS">
+            <div style={{ fontSize: 14, fontWeight: 700, color: P.t0 }}>
+              {selectedNode ? selectedNode.label : 'No region focused'}
+            </div>
             <div style={{ fontSize: 11, color: P.t2, marginTop: 6, lineHeight: 1.6 }}>
-              {selectedNode ? `Action ${selectedNode.action ?? 'n/a'} | reason ${selectedNode.reasonCode ?? 'n/a'}` : 'Choose a frame to lock the globe onto the routed region.'}
+              {selectedNode
+                ? `${selectedState?.label ?? 'Unknown'} state | ${selectedNode.reasonCode ?? 'No reason code'} | ${focusFlowCount} connected lanes`
+                : 'Select a beacon to inspect the region, then lock the routed decision in the feed below.'}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+              {selectedFrame ? (
+                <span style={{ padding: '5px 8px', borderRadius: 999, border: `1px solid ${hex(A[selectedFrame.action], 0.26)}`, background: hex(A[selectedFrame.action], 0.1), color: A[selectedFrame.action], fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+                  {ACTION_META[selectedFrame.action].label.toUpperCase()}
+                </span>
+              ) : null}
+              {selectedNode ? (
+                <span style={{ padding: '5px 8px', borderRadius: 999, border: `1px solid ${hex(P.accent, 0.22)}`, background: hex(P.accent, 0.08), color: '#dbeafe', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+                  {selectedNode.region}
+                </span>
+              ) : null}
+              {selectedFrame?.trust.degraded ? (
+                <span style={{ padding: '5px 8px', borderRadius: 999, border: `1px solid ${hex(A.reroute, 0.24)}`, background: hex(A.reroute, 0.1), color: '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+                  GUARDED
+                </span>
+              ) : null}
             </div>
           </Block>
+          <Block title="OPERATOR SIGNAL">
+            <Row label="Active nodes" value={String(activeCount)} color={A.run_now} />
+            <Row label="Guarded nodes" value={String(marginalCount)} color={A.reroute} />
+            <Row label="Blocked nodes" value={String(blockedCount)} color={blockedCount > 0 ? A.deny : P.t2} />
+            <Row label="Visible route lanes" value={String(flowPaths.length)} color={selectedRegion ? '#dbeafe' : P.t1} />
+            <Row label="Projection lag" value={projectionLagSec == null ? 'Unavailable' : `${projectionLagSec}s`} color={projectionLagSec != null && projectionLagSec > 60 ? A.reroute : P.t1} />
+          </Block>
+          {!expanded ? (
+            <Block title="FRONTLINE REGIONS">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {frontLineNodes.map((item) => {
+                  const meta = WORLD_STATE_META[item.node.state]
+                  return (
+                    <button
+                      key={item.node.region}
+                      type="button"
+                      onClick={() => onSelectRegion(item.node)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '6px 10px',
+                        borderRadius: 999,
+                        border: `1px solid ${hex(meta.color, item.node.region === selectedRegion ? 0.42 : 0.2)}`,
+                        background: item.node.region === selectedRegion ? hex(meta.color, 0.12) : hex('#ffffff', 0.03),
+                        color: P.t1,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--m)',
+                        fontSize: 10,
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      <span style={{ width: 7, height: 7, borderRadius: '999px', background: meta.color, boxShadow: `0 0 10px ${hex(meta.color, 0.45)}` }} />
+                      {item.node.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Block>
+          ) : null}
         </div>
       </div>
     </div>
@@ -751,6 +944,7 @@ export function CommandCenterShell() {
   const [seededSelection, setSeededSelection] = useState(false)
   const [mobile, setMobile] = useState(false)
   const [panel, setPanel] = useState<Panel>('trace')
+  const [focusedRegion, setFocusedRegion] = useState<string | null>(null)
 
   useEffect(() => {
     const onResize = () => setMobile(window.innerWidth < 960)
@@ -776,9 +970,43 @@ export function CommandCenterShell() {
     return snapshot.frames.find((item) => item.id === sel) ?? null
   }, [snapshot, sel])
 
+  useEffect(() => {
+    if (frame?.region) {
+      setFocusedRegion(frame.region)
+    }
+  }, [frame?.region])
+
   const isPrimary = Boolean(snapshot?.selectedFrameId && sel === snapshot.selectedFrameId)
   const detailQuery = useHallOGridFrame(sel, { enabled: Boolean(sel) && !isPrimary, refetchInterval: false })
   const detail = isPrimary ? snapshot?.selectedFrame ?? null : detailQuery.data ?? null
+
+  const selectFrame = (id: string) => {
+    setSel((current) => {
+      const next = current === id ? null : id
+      if (next) setPanel('trace')
+      if (!next) setFocusedRegion(null)
+      return next
+    })
+  }
+
+  const selectRegion = (node: WorldRegionState) => {
+    setFocusedRegion(node.region)
+
+    const targetFrameId =
+      node.decisionFrameId ??
+      snapshot?.frames.find((item) => item.region === node.region)?.id ??
+      null
+
+    if (targetFrameId) {
+      setPanel('trace')
+      setSel(targetFrameId)
+    }
+  }
+
+  const clearSelection = () => {
+    setSel(null)
+    setFocusedRegion(null)
+  }
 
   if (snapshotQuery.isLoading) {
     return <div className="rounded-[28px] border border-white/10 bg-white/[0.04] px-6 py-8 text-sm text-slate-300">Loading HallOGrid...</div>
@@ -799,7 +1027,16 @@ export function CommandCenterShell() {
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: SCENE_TOP, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
-          <GlobePanel nodes={snapshot.world.nodes} flows={snapshot.world.flows} selectedRegion={frame?.region ?? null} projectionLagSec={snapshot.projection.projectionLagSec} streamHealthy={snapshot.transport.streamHealthy} expanded={!mobile && !sel} />
+          <GlobePanel
+            nodes={snapshot.world.nodes}
+            flows={snapshot.world.flows}
+            selectedRegion={focusedRegion ?? frame?.region ?? null}
+            selectedFrame={frame}
+            projectionLagSec={snapshot.projection.projectionLagSec}
+            streamHealthy={snapshot.transport.streamHealthy}
+            expanded={!mobile && !sel}
+            onSelectRegion={selectRegion}
+          />
 
           <div
             style={{
@@ -823,14 +1060,14 @@ export function CommandCenterShell() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {snapshot.frames.map((item) => (
-                  <FeedCard key={item.id} f={item} active={sel === item.id} anyActive={Boolean(sel)} onTap={(id) => setSel((current) => { const next = current === id ? null : id; if (next) setPanel('trace'); return next })} />
+                  <FeedCard key={item.id} f={item} active={sel === item.id} anyActive={Boolean(sel)} onTap={selectFrame} />
                 ))}
               </div>
             </div>
 
             {!mobile && frame ? (
               <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, borderLeft: `1px solid ${P.border}`, boxShadow: `-12px 0 40px ${hex('#000000', 0.35)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
-                <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={() => setSel(null)} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
+                <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={clearSelection} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
               </div>
             ) : !mobile ? (
               <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2 }}>
@@ -845,10 +1082,10 @@ export function CommandCenterShell() {
       </div>
 
       {mobile && frame ? (
-        <div onClick={(event) => { if (event.target === event.currentTarget) setSel(null) }} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div onClick={(event) => { if (event.target === event.currentTarget) clearSelection() }} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div style={{ borderRadius: '18px 18px 0 0', maxHeight: '90vh', overflow: 'hidden', animation: 'hallogrid-sheet-up 0.3s cubic-bezier(0.16,1,0.3,1)', boxShadow: `0 -12px 50px ${hex('#000000', 0.6)}` }}>
             <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 6px', background: `${P.bg1}f8` }}><div style={{ width: 40, height: 4, borderRadius: 2, background: P.borderLit }} /></div>
-            <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={() => setSel(null)} mobile loading={Boolean(frame) && !detail && detailQuery.isLoading} />
+            <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={clearSelection} mobile loading={Boolean(frame) && !detail && detailQuery.isLoading} />
           </div>
         </div>
       ) : null}
