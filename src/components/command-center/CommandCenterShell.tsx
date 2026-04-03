@@ -798,40 +798,49 @@ export function CommandCenterShell() {
       <TelemetryStrip frames={snapshot.frames} />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: SCENE_TOP, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, alignItems: 'start' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, transformStyle: 'preserve-3d' }}>
-            <GlobePanel nodes={snapshot.world.nodes} flows={snapshot.world.flows} selectedRegion={frame?.region ?? null} projectionLagSec={snapshot.projection.projectionLagSec} streamHealthy={snapshot.transport.streamHealthy} expanded={!mobile && !sel} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
+          <GlobePanel nodes={snapshot.world.nodes} flows={snapshot.world.flows} selectedRegion={frame?.region ?? null} projectionLagSec={snapshot.projection.projectionLagSec} streamHealthy={snapshot.transport.streamHealthy} expanded={!mobile && !sel} />
 
-            <div style={{ padding: '0 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${P.border}`, paddingBottom: 12 }}>
-              <div>
-                <div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.12em' }}>DECISION FEED</div>
-                <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>Select a frame. The governed record opens instantly with trace, replay, and proof.</div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: mobile ? '1fr' : 'minmax(0, 1.05fr) minmax(0, 0.95fr)',
+              gap: 16,
+              alignItems: 'start',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, transformStyle: 'preserve-3d' }}>
+              <div style={{ padding: '0 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${P.border}`, paddingBottom: 12 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.12em' }}>DECISION FEED</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>Select a frame. The governed record opens instantly with trace, replay, and proof.</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3 }}>{snapshot.frames.length} FRAMES</span>
+                  <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: A.run_now, letterSpacing: '0.1em', fontWeight: 700 }}>LIVE</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3 }}>{snapshot.frames.length} FRAMES</span>
-                <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: A.run_now, letterSpacing: '0.1em', fontWeight: 700 }}>LIVE</span>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {snapshot.frames.map((item) => (
+                  <FeedCard key={item.id} f={item} active={sel === item.id} anyActive={Boolean(sel)} onTap={(id) => setSel((current) => { const next = current === id ? null : id; if (next) setPanel('trace'); return next })} />
+                ))}
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {snapshot.frames.map((item) => (
-                <FeedCard key={item.id} f={item} active={sel === item.id} anyActive={Boolean(sel)} onTap={(id) => setSel((current) => { const next = current === id ? null : id; if (next) setPanel('trace'); return next })} />
-              ))}
-            </div>
+            {!mobile && frame ? (
+              <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, borderLeft: `1px solid ${P.border}`, boxShadow: `-12px 0 40px ${hex('#000000', 0.35)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
+                <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={() => setSel(null)} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
+              </div>
+            ) : !mobile ? (
+              <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 11, letterSpacing: '0.12em', color: '#dbeafe' }}>SELECT A FRAME</div>
+                  <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7 }}>The governed record will lock on the right with direct trace, replay, and proof sections.</div>
+                </div>
+              </div>
+            ) : null}
           </div>
-
-          {!mobile && frame ? (
-            <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, borderTop: `1px solid ${P.border}`, boxShadow: `0 -12px 40px ${hex('#000000', 0.35)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
-              <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={() => setSel(null)} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
-            </div>
-          ) : !mobile ? (
-            <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2 }}>
-              <div>
-                <div style={{ fontFamily: 'var(--m)', fontSize: 11, letterSpacing: '0.12em', color: '#dbeafe' }}>SELECT A FRAME</div>
-                <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7 }}>The governed record will lock on the right with direct trace, replay, and proof sections.</div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
 
