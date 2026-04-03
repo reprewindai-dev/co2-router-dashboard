@@ -520,9 +520,11 @@ function GlobePanel({
   const blockedCount = nodes.filter((node) => node.state === 'blocked').length
   const selectedNode = selectedRegion ? nodes.find((node) => node.region === selectedRegion) ?? null : null
   const selectedState = selectedNode ? WORLD_STATE_META[selectedNode.state] : null
-  const focusFlowCount = selectedRegion
-    ? flows.filter((flow) => flow.fromRegion === selectedRegion || flow.toRegion === selectedRegion).length
-    : 0
+  const selectedConnectedFlows = selectedRegion
+    ? flows.filter((flow) => flow.fromRegion === selectedRegion || flow.toRegion === selectedRegion)
+    : []
+  const focusFlowCount = selectedConnectedFlows.length
+  const blockedFocusFlowCount = selectedConnectedFlows.filter((flow) => flow.mode === 'blocked').length
   const actionableNodes = projected
     .filter((item) => item.depth >= 0.02)
     .sort((a, b) => b.depth - a.depth)
@@ -737,12 +739,48 @@ function GlobePanel({
                 </span>
               ) : null}
             </div>
+            {selectedFrame ? (
+              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                <div style={{ padding: '8px 9px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>TRUST</div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedFrame.trust.tier.toUpperCase()}</div>
+                </div>
+                <div style={{ padding: '8px 9px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>FRESHNESS</div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedFrame.trust.freshnessLabel}</div>
+                </div>
+              </div>
+            ) : null}
+          </Block>
+          <Block title="DECISION READ">
+            {selectedFrame ? (
+              <>
+                <div style={{ fontSize: 13, fontWeight: 700, color: P.t0, lineHeight: 1.5 }}>
+                  {selectedFrame.explanation.headline}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 11, color: P.t2, lineHeight: 1.7 }}>
+                  {selectedFrame.explanation.dominantConstraint}
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <Row label="Why this action" value={selectedFrame.reasonLabel} color={A[selectedFrame.action]} />
+                  <Row label="Confidence" value={selectedFrame.metrics.signalConfidence != null ? selectedFrame.metrics.signalConfidence.toFixed(1) : 'Unavailable'} color={confidenceColor(selectedFrame.metrics.signalConfidence)} />
+                  <Row label="Carbon delta" value={selectedFrame.metrics.carbonReductionPct != null ? `${selectedFrame.metrics.carbonReductionPct.toFixed(1)}%` : 'Unavailable'} color={A.run_now} />
+                  <Row label="Water delta" value={liters(selectedFrame.metrics.waterImpactDeltaLiters)} color={selectedFrame.metrics.waterImpactDeltaLiters != null ? (selectedFrame.metrics.waterImpactDeltaLiters <= 0 ? A.run_now : A.reroute) : P.t1} />
+                  <Row label="Latency" value={ms(selectedFrame.metrics.totalLatencyMs)} />
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 11, color: P.t2, lineHeight: 1.7 }}>
+                The globe is the operator’s world-state lens. Select a beacon to see route pressure, trust posture, and impact before opening the governed record.
+              </div>
+            )}
           </Block>
           <Block title="OPERATOR SIGNAL">
             <Row label="Active nodes" value={String(activeCount)} color={A.run_now} />
             <Row label="Guarded nodes" value={String(marginalCount)} color={A.reroute} />
             <Row label="Blocked nodes" value={String(blockedCount)} color={blockedCount > 0 ? A.deny : P.t2} />
             <Row label="Visible route lanes" value={String(flowPaths.length)} color={selectedRegion ? '#dbeafe' : P.t1} />
+            <Row label="Blocked focus lanes" value={String(blockedFocusFlowCount)} color={blockedFocusFlowCount > 0 ? A.deny : P.t2} />
             <Row label="Projection lag" value={projectionLagSec == null ? 'Unavailable' : `${projectionLagSec}s`} color={projectionLagSec != null && projectionLagSec > 60 ? A.reroute : P.t1} />
           </Block>
           {!expanded ? (
