@@ -4,9 +4,12 @@ import Link from 'next/link'
 
 import { CO2RouterLogo } from '@/components/CO2RouterLogo'
 import {
+  brandAliases,
   defaultDescription,
   defaultOgImage,
+  globalSeoKeywords,
   siteName,
+  siteTechUrl,
   siteTitle,
   siteUrl,
 } from '@/lib/seo'
@@ -20,6 +23,7 @@ const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] })
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   applicationName: siteName,
+  keywords: [...globalSeoKeywords],
   title: {
     default: `${siteName} | ${siteTitle}`,
     template: `%s | ${siteName}`,
@@ -52,11 +56,24 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
   },
+  category: 'technology',
+  referrer: 'origin-when-cross-origin',
   icons: {
     icon: '/co2router-symbol.png',
     shortcut: '/co2router-symbol.png',
     apple: '/co2router-symbol.png',
+  },
+  other: {
+    'application-name': siteName,
+    'apple-mobile-web-app-title': siteName,
   },
 }
 
@@ -69,8 +86,48 @@ export default function RootLayout({
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: siteName,
+    alternateName: [...brandAliases],
     url: siteUrl,
     description: defaultDescription,
+    keywords: [...globalSeoKeywords].join(', '),
+    sameAs: [siteUrl, siteTechUrl],
+    publisher: {
+      '@type': 'Organization',
+      name: siteName,
+      url: siteUrl,
+    },
+  }
+
+  const organizationSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: siteName,
+    alternateName: [...brandAliases],
+    url: siteUrl,
+    sameAs: [siteUrl, siteTechUrl],
+    description: defaultDescription,
+  }
+
+  const softwareSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: siteName,
+    alternateName: [...brandAliases],
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web',
+    url: `${siteUrl}/console`,
+    description:
+      'Carbon-aware compute routing, water-aware workload authorization, proof, trace, replay, and governance for pre-execution infrastructure decisions.',
+    offers: {
+      '@type': 'Offer',
+      url: `${siteUrl}/pricing`,
+      priceCurrency: 'USD',
+      availability: 'https://schema.org/InStock',
+    },
+    brand: {
+      '@type': 'Brand',
+      name: siteName,
+    },
     publisher: {
       '@type': 'Organization',
       name: siteName,
@@ -84,7 +141,9 @@ export default function RootLayout({
         <Providers>
           <script
             type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify([organizationSchema, websiteSchema, softwareSchema]),
+            }}
           />
           <div className="min-h-screen bg-slate-950 bg-grid-mesh">
             <header className="sticky top-0 z-50 border-b border-slate-800/50 bg-slate-950/80 backdrop-blur-xl">

@@ -914,3 +914,127 @@ export interface CommandCenterSnapshot {
   }
   health: SystemHealthSnapshot
 }
+
+export type HallOGridAdapterKind = 'canonical' | 'sse' | 'websocket' | 'polling'
+export type HallOGridProofState = 'available' | 'pending' | 'unavailable'
+export type HallOGridReplayState = 'verified' | 'mismatch' | 'pending' | 'unavailable'
+export type HallOGridTraceState = 'locked' | 'pending' | 'unavailable'
+
+export interface HallOGridAdapterProfile {
+  id: string
+  label: string
+  kind: HallOGridAdapterKind
+  enabled: boolean
+  notes: string
+}
+
+export interface HallOGridFrame {
+  id: string
+  createdAt: string
+  action: ControlAction
+  region: string
+  reasonCode: string
+  reasonLabel: string
+  workloadClass: WorkloadClass
+  proofState: HallOGridProofState
+  replayState: HallOGridReplayState
+  traceState: HallOGridTraceState
+  governanceSource: string | null
+  explanation: {
+    headline: string
+    dominantConstraint: string
+    counterfactual: string
+  }
+  trust: {
+    tier: 'high' | 'medium' | 'guarded' | 'unavailable'
+    freshnessLabel: string
+    replayability: string
+    degraded: boolean
+    summary: string
+  }
+  metrics: {
+    totalLatencyMs: number | null
+    computeLatencyMs: number | null
+    carbonReductionPct: number | null
+    waterImpactDeltaLiters: number | null
+    signalConfidence: number | null
+  }
+  runtime: {
+    signalMode: 'marginal' | 'average' | 'fallback' | null
+    accountingMethod: 'marginal' | 'flow-traced' | 'average' | null
+    waterAuthorityMode: 'basin' | 'facility_overlay' | 'fallback' | null
+    fallbackUsed: boolean
+    systemState: WorldExecutionState
+  }
+}
+
+export interface HallOGridFrameDetail {
+  generatedAt: string
+  frame: HallOGridFrame
+  evidence: {
+    trace: {
+      available: boolean
+      hash: string | null
+      inputHash: string | null
+      sequenceNumber: number | null
+      createdAt: string | null
+      governanceSource: string | null
+      constraintsApplied: string[]
+      candidates: Array<{
+        region: string
+        score: number
+        waterStressIndex: number
+        cacheStatus: string | null
+      }>
+    }
+    replay: {
+      available: boolean
+      deterministicMatch: boolean | null
+      traceBacked: boolean
+      mismatches: string[]
+      selectedRegion: string | null
+      selectedAction: ControlAction | null
+      reasonCode: string | null
+      proofHash: string | null
+    }
+    proof: {
+      hash: string | null
+      evidenceRefs: string[]
+      providerSnapshotRefs: string[]
+      notBefore: string | null
+    }
+  }
+  explanation: DecisionExplanationContract | null
+  trust: DecisionTrustContract | null
+}
+
+export interface HallOGridSnapshot {
+  generatedAt: string
+  selectedFrameId: string | null
+  title: string
+  subtitle: string
+  projection: CommandCenterProjectionSnapshot
+  selectedFrame: HallOGridFrameDetail | null
+  frames: HallOGridFrame[]
+  world: {
+    nodes: WorldRegionState[]
+    flows: WorldRoutingFlow[]
+  }
+  governance: SaiqGovernanceSnapshot
+  traceStream: {
+    items: TraceEventItem[]
+  }
+  health: SystemHealthSnapshot
+  transport: {
+    mode: 'snapshot+stream'
+    streamHealthy: boolean
+    snapshotUrl: string
+    streamUrl: string
+    adapters: HallOGridAdapterProfile[]
+  }
+}
+
+export interface HallOGridStreamEvent {
+  type: 'snapshot'
+  snapshot: HallOGridSnapshot
+}

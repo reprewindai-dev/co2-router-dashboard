@@ -30,6 +30,59 @@ body {
     linear-gradient(180deg, rgba(2, 8, 23, 0.94), rgba(2, 8, 18, 0.98));
 }
 
+.hallogrid-shell {
+  position: relative;
+}
+
+.hallogrid-shell::before {
+  content: '';
+  position: absolute;
+  inset: -48px -16px auto;
+  height: 420px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(34, 211, 238, 0.12), transparent 28%),
+    radial-gradient(circle at 78% 10%, rgba(16, 185, 129, 0.12), transparent 24%),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+  background-size: auto, auto, 72px 72px, 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent 88%);
+  opacity: 0.8;
+}
+
+.hallogrid-panel {
+  background:
+    radial-gradient(circle at top, rgba(34, 211, 238, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(4, 10, 24, 0.96), rgba(3, 9, 20, 0.9));
+  box-shadow:
+    0 30px 120px rgba(2, 6, 23, 0.44),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.hallogrid-raster {
+  position: relative;
+}
+
+.hallogrid-raster::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 24%, transparent 76%, rgba(255, 255, 255, 0.03)),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+  background-size: auto, 26px 26px, 26px 26px;
+  opacity: 0.35;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.45));
+}
+
+.hallogrid-focus {
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.14),
+    0 24px 80px rgba(8, 145, 178, 0.12);
+}
+
 /* ── Glassmorphism card ── */
 .glass-card {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.4));
@@ -246,5 +299,24 @@ body {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hallogrid-shell::before,
+  .hallogrid-raster::after,
+  .pulse-glow,
+  .animate-breathe,
+  .animate-slide-up,
+  .animate-fade-in,
+  .stagger-children > *,
+  .animate-orbit {
+    animation: none !important;
+  }
+
+  .glass-card,
+  .glass-card-glow {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
 }

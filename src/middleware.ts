@@ -1,11 +1,25 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+const HOST_REDIRECTS = new Map<string, string>([
+  ['www.co2router.com', 'co2router.com'],
+  ['www.co2router.tech', 'co2router.tech'],
+])
+
 function isServerActionRequest(request: NextRequest) {
   return request.method === 'POST' && request.headers.has('next-action')
 }
 
 export function middleware(request: NextRequest) {
+  const hostname = request.nextUrl.hostname.toLowerCase()
+  const redirectHost = HOST_REDIRECTS.get(hostname)
+  if (redirectHost) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.protocol = 'https'
+    redirectUrl.hostname = redirectHost
+    return NextResponse.redirect(redirectUrl, 308)
+  }
+
   if (!isServerActionRequest(request)) {
     return NextResponse.next()
   }

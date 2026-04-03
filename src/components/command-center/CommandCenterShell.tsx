@@ -1,1238 +1,867 @@
 'use client'
 
-import clsx from 'clsx'
 import { formatDistanceToNowStrict } from 'date-fns'
-import { motion } from 'framer-motion'
-import {
-  Activity,
-  ChevronRight,
-  GitBranch,
-  Globe2,
-  Lock,
-  Radar,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Activity, Globe2, Lock, Radar, RefreshCw, X } from 'lucide-react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { ACTION_META } from '@/components/control-surface/action-styles'
-import { CommandCenterTruthRail } from '@/components/command-center/CommandCenterTruthRail'
-import {
-  useCommandCenterSnapshot,
-  useDecisionTrace,
-  useReplayBundle,
-} from '@/lib/hooks/control-surface'
+import { useHallOGridFrame, useHallOGridSnapshot } from '@/lib/hooks/control-surface'
 import type {
-  CommandCenterDecisionItem,
-  CommandCenterSnapshot,
-  ControlSurfaceProviderNode,
-  DecisionTraceRawRecord,
-  LiveSystemReplayResponse,
-  SaiqGovernanceSnapshot,
-  TraceEventItem,
+  HallOGridFrame,
+  HallOGridFrameDetail,
   WorldRegionState,
   WorldRoutingFlow,
-  WorldExecutionState,
 } from '@/types/control-surface'
 
-type InspectorPanelMode = 'trace' | 'replay' | 'proof'
+type Panel = 'trace' | 'replay' | 'proof'
 
-function shortHash(value: string | null | undefined, length = 12) {
-  if (!value) return 'Unavailable'
-  return value.length <= length ? value : `${value.slice(0, length)}…`
+const HEADER_HEIGHT = 58
+const STRIP_HEIGHT = 34
+const SCENE_TOP = HEADER_HEIGHT + STRIP_HEIGHT + 12
+
+const P = {
+  bg0: '#050608',
+  bg1: '#0b0d14',
+  bg2: '#10131c',
+  glass: 'rgba(12,14,22,0.68)',
+  glass2: 'rgba(20,23,34,0.82)',
+  border: 'rgba(255,255,255,0.08)',
+  borderLit: 'rgba(255,255,255,0.14)',
+  t0: '#eef0fa',
+  t1: '#b4bad0',
+  t2: '#687294',
+  t3: '#3a4168',
+  accent: '#4d8dff',
 }
 
-function formatAgo(timestamp: string) {
+const A: Record<HallOGridFrame['action'], string> = {
+  run_now: '#00e68a',
+  reroute: '#ffb833',
+  delay: '#a78bfa',
+  throttle: '#7c9dff',
+  deny: '#ff4d6a',
+}
+
+const TABS = [
+  ['trace', 'Trace', Activity],
+  ['replay', 'Replay', RefreshCw],
+  ['proof', 'Proof', Lock],
+] as const
+
+const hex = (c: string, o: number) => `${c}${Math.round(o * 255).toString(16).padStart(2, '0')}`
+
+const ago = (v: string) => {
   try {
-    return formatDistanceToNowStrict(new Date(timestamp), { addSuffix: true })
+    return formatDistanceToNowStrict(new Date(v), { addSuffix: true })
   } catch {
-    return timestamp
+    return v
   }
 }
 
-function formatSecondsCompact(seconds: number | null | undefined) {
-  if (seconds == null || !Number.isFinite(seconds)) return 'Unavailable'
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`
-  return `${(seconds / 86400).toFixed(seconds >= 86400 * 10 ? 0 : 1)}d`
+const ms = (v: number | null | undefined) => (v == null ? 'Unavailable' : `${v.toFixed(0)}ms`)
+const liters = (v: number | null | undefined) =>
+  v == null ? 'Unavailable' : `${v > 0 ? '+' : ''}${Math.abs(v) >= 10 ? v.toFixed(0) : v.toFixed(1)} L`
+const shortHash = (v: string | null | undefined, len = 20) =>
+  !v ? 'Unavailable' : v.length <= len ? v : `${v.slice(0, len)}...`
+const confidenceGrade = (v: number | null | undefined) =>
+  v == null ? '--' : v >= 90 ? 'A' : v >= 80 ? 'B' : v >= 70 ? 'C' : 'D'
+
+function worldStateColor(node: WorldRegionState) {
+  if (node.action && node.action in A) return A[node.action as HallOGridFrame['action']]
+  if (node.state === 'active') return A.run_now
+  if (node.state === 'marginal') return A.reroute
+  return A.deny
 }
 
-function resolveActionMeta(action: string) {
-  return ACTION_META[(action in ACTION_META ? action : 'run_now') as keyof typeof ACTION_META]
+function confidenceColor(value: number | null | undefined) {
+  if (value == null) return P.t2
+  if (value >= 85) return A.run_now
+  if (value >= 68) return A.reroute
+  return A.deny
 }
 
-function getStatusTone(state: WorldExecutionState) {
-  if (state === 'active') return 'border-emerald-400/35 bg-emerald-400/10 text-emerald-200'
-  if (state === 'blocked') return 'border-rose-400/35 bg-rose-400/10 text-rose-200'
-  return 'border-amber-400/35 bg-amber-400/10 text-amber-100'
+function BackgroundGrid({ active, color }: { active: boolean; color: string }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: '30%',
+          left: '-25%',
+          width: '150%',
+          height: '150%',
+          backgroundSize: '50px 50px',
+          backgroundImage:
+            'linear-gradient(to right, rgba(100,140,255,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(100,140,255,0.04) 1px, transparent 1px)',
+          transform: 'rotateX(65deg) scale(2)',
+          transformOrigin: 'top center',
+          opacity: active ? 0.9 : 0.35,
+          transition: 'opacity 1s ease, filter 1s ease',
+          filter: active ? `drop-shadow(0 0 30px ${hex(color, 0.15)})` : 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: `radial-gradient(ellipse 70% 40% at 50% 0%, ${hex(P.accent, 0.07)} 0%, transparent 70%), radial-gradient(ellipse 50% 50% at 80% 90%, ${hex(A.run_now, 0.04)} 0%, transparent 50%), radial-gradient(ellipse 40% 40% at 15% 70%, ${hex(A.delay, 0.03)} 0%, transparent 50%)`,
+          opacity: active ? 1.1 : 0.72,
+        }}
+      />
+      {active ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `radial-gradient(ellipse 60% 40% at 50% 50%, ${hex(color, 0.06)} 0%, transparent 60%)`,
+          }}
+        />
+      ) : null}
+      <div
+        style={{
+          position: 'absolute',
+          width: '180vw',
+          height: '180vh',
+          top: '-40%',
+          left: '-40%',
+          background: `radial-gradient(circle at 50% 50%, ${hex(P.accent, 0.03)} 0%, transparent 35%)`,
+          animation: 'hallogrid-breathe 14s ease-in-out infinite',
+        }}
+      />
+    </div>
+  )
 }
 
-function deriveHeader(
-  snapshot: CommandCenterSnapshot,
-  selectedTrace: DecisionTraceRawRecord | null,
-  selectedReplay: LiveSystemReplayResponse | null
-) {
-  return {
-    systemActive: snapshot.health.service.status === 'healthy',
-    systemStatus: snapshot.health.service.status,
-    saiqEnforced: selectedTrace ? selectedTrace.payload.governance.source !== 'NONE' : null,
-    traceLocked: selectedTrace ? Boolean(selectedTrace.traceHash) : null,
-    replayVerified: selectedReplay?.deterministicMatch ?? null,
-    detail: snapshot.header.detail,
-  }
-}
-
-function deriveGovernance(
-  snapshot: CommandCenterSnapshot,
-  selectedTrace: DecisionTraceRawRecord | null,
-  selectedReplay: LiveSystemReplayResponse | null
-): SaiqGovernanceSnapshot {
-  if (!selectedTrace) return snapshot.governance
-
-  const traceThresholds = selectedTrace.payload.governance.thresholds
-  const thresholdsSource =
-    (traceThresholds && typeof traceThresholds === 'object' ? traceThresholds : undefined) ??
-    (selectedReplay?.persisted?.policyTrace?.thresholds as Record<string, unknown> | undefined) ??
-    (selectedReplay?.replay.policyTrace?.thresholds as Record<string, unknown> | undefined)
-
-  const thresholds =
-    thresholdsSource && typeof thresholdsSource === 'object'
-      ? Object.fromEntries(
-          Object.entries(thresholdsSource)
-            .filter(([, value]) => typeof value === 'number')
-            .map(([key, value]) => [key, value as number | null])
-        )
-      : null
-
-  const traceWeights = selectedTrace.payload.governance.weights
-  const weights =
-    traceWeights &&
-    (typeof traceWeights.carbon === 'number' ||
-      typeof traceWeights.water === 'number' ||
-      typeof traceWeights.latency === 'number' ||
-      typeof traceWeights.cost === 'number')
-      ? {
-          carbon: typeof traceWeights.carbon === 'number' ? traceWeights.carbon : null,
-          water: typeof traceWeights.water === 'number' ? traceWeights.water : null,
-          latency: typeof traceWeights.latency === 'number' ? traceWeights.latency : null,
-          cost: typeof traceWeights.cost === 'number' ? traceWeights.cost : null,
-        }
-      : null
-
-  const selectedScore =
-    selectedTrace.payload.governance.score ??
-    selectedTrace.payload.normalizedSignals.candidates.find(
-      (candidate) => candidate.region === selectedTrace.payload.decisionPath.selectedRegion
-    )?.score ??
-    null
-
-  return {
-    frameworkLabel: 'SAIQ',
-    source: selectedTrace.payload.governance.source,
-    active: selectedTrace.payload.governance.source !== 'NONE',
-    strict: selectedTrace.payload.governance.strict,
-    enforcementMode: selectedTrace.payload.decisionPath.operatingMode,
-    selectedScore,
-    thresholds: thresholds && Object.keys(thresholds).length ? thresholds : null,
-    weights,
-    impact: {
-      carbonReductionPct:
-        selectedReplay?.persisted?.savings.carbonReductionPct ??
-        selectedReplay?.replay.savings.carbonReductionPct ??
-        null,
-      waterImpactDeltaLiters:
-        selectedReplay?.persisted?.savings.waterImpactDeltaLiters ??
-        selectedReplay?.replay.savings.waterImpactDeltaLiters ??
-        null,
-      signalConfidence:
-        selectedReplay?.persisted?.signalConfidence ?? selectedReplay?.replay.signalConfidence ?? null,
-      constraintsApplied: selectedTrace.payload.governance.constraintsApplied.length,
-      cacheHit: selectedTrace.payload.performance.cacheHit,
-    },
-  }
-}
-
-function resolveRegionAnchor(region: string, index: number) {
-  const anchors: Record<string, { x: number; y: number; label: string }> = {
-    'us-west-2': { x: 14, y: 25, label: 'US West 2' },
-    'us-west-1': { x: 17, y: 28, label: 'US West 1' },
-    'us-east-2': { x: 28, y: 23, label: 'US East 2' },
-    'us-east-1': { x: 31, y: 26, label: 'US East 1' },
-    'eu-west-1': { x: 50, y: 22, label: 'EU West 1' },
-    'eu-central-1': { x: 56, y: 23, label: 'EU Central 1' },
-    'eu-north-1': { x: 57, y: 16, label: 'EU North 1' },
-    'ap-southeast-1': { x: 79, y: 34, label: 'AP SouthEast 1' },
-    'ap-northeast-1': { x: 83, y: 18, label: 'AP NorthEast 1' },
-  }
-
-  if (anchors[region]) return { region, ...anchors[region] }
-
-  return {
-    region,
-    label: region,
-    x: 14 + ((index % 6) * 14),
-    y: 47 + Math.floor(index / 6) * 7,
-  }
-}
-
-function deriveWorldModel(
-  decisions: CommandCenterDecisionItem[],
-  selectedTrace: DecisionTraceRawRecord | null,
-  selectedReplay: LiveSystemReplayResponse | null
-): { nodes: WorldRegionState[]; flows: WorldRoutingFlow[] } {
-  const regionMap = new Map<string, CommandCenterDecisionItem>()
-  decisions.forEach((decision) => {
-    if (!regionMap.has(decision.selectedRegion)) {
-      regionMap.set(decision.selectedRegion, decision)
-    }
-  })
-
-  const baselineRegion = selectedReplay?.persisted?.baseline.region ?? selectedReplay?.replay.baseline.region ?? null
-  if (baselineRegion && !regionMap.has(baselineRegion)) {
-    const selected = decisions.find((decision) => decision.decisionFrameId === selectedTrace?.decisionFrameId) ?? decisions[0]
-    if (selected) {
-      regionMap.set(baselineRegion, {
-        ...selected,
-        selectedRegion: baselineRegion,
-        systemState: 'marginal',
-      })
-    }
-  }
-
-  const nodes = Array.from(regionMap.values()).map((decision, index) => {
-    const anchor = resolveRegionAnchor(decision.selectedRegion, index)
-    return {
-      region: decision.selectedRegion,
-      label: anchor.label,
-      x: anchor.x,
-      y: anchor.y,
-      state: decision.systemState,
-      decisionFrameId: decision.decisionFrameId,
-      action: decision.action,
-      reasonCode: decision.reasonCode,
-    }
-  })
-
-  const selectedAction = selectedReplay?.persisted?.decision ?? selectedReplay?.replay.decision ?? null
-  const selectedRegion = selectedReplay?.persisted?.selectedRegion ?? selectedReplay?.replay.selectedRegion ?? null
-  const flows =
-    baselineRegion && selectedRegion && selectedAction
-      ? [
-          {
-            id: `${baselineRegion}:${selectedRegion}:${selectedAction}`,
-            fromRegion: baselineRegion,
-            toRegion: selectedRegion,
-            mode: selectedAction === 'run_now' || selectedAction === 'reroute' ? 'route' : 'blocked',
-          } satisfies WorldRoutingFlow,
-        ]
-      : []
-
-  return { nodes, flows }
-}
-
-function deriveTraceItems(
-  items: CommandCenterDecisionItem[],
-  selectedFrameId: string | null,
-  selectedReplay: LiveSystemReplayResponse | null
-): TraceEventItem[] {
-  return items.map((decision) => ({
-    decisionFrameId: decision.decisionFrameId,
-    createdAt: decision.createdAt,
-    action: decision.action,
-    region: decision.selectedRegion,
-    reasonCode: decision.reasonCode,
-    proofAvailable: Boolean(decision.proofHash),
-    traceAvailable: decision.traceAvailable,
-    governanceSource: decision.governanceSource,
-    replayVerified:
-      decision.decisionFrameId === selectedFrameId ? selectedReplay?.deterministicMatch ?? null : null,
-  }))
-}
-
-function MetricChip({
-  icon: Icon,
-  label,
-  state,
+function HeaderBar({
+  title,
+  subtitle,
+  streamHealthy,
+  generatedAt,
 }: {
-  icon: typeof ShieldCheck
-  label: string
-  state: boolean | null
+  title: string
+  subtitle: string
+  streamHealthy: boolean
+  generatedAt: string
 }) {
   return (
     <div
-      className={clsx(
-        'flex items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em]',
-        state == null
-          ? 'border-white/12 bg-white/[0.04] text-slate-300'
-          : state
-            ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
-            : 'border-rose-400/30 bg-rose-400/10 text-rose-200'
-      )}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 120,
+        height: HEADER_HEIGHT,
+        padding: '0 20px',
+        background: `linear-gradient(180deg, ${P.bg1}f2 0%, ${P.bg1}cf 100%)`,
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+        borderBottom: `1px solid ${P.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+      }}
     >
-      <Icon className="h-3.5 w-3.5" />
-      <span>{label}</span>
-      <span className="text-[10px] tracking-[0.24em] text-white/75">
-        {state == null ? 'UNAVAILABLE' : state ? 'LOCKED' : 'OFF'}
-      </span>
-    </div>
-  )
-}
-
-function GlobalCommandHeader({
-  snapshot,
-  selectedTrace,
-  selectedReplay,
-}: {
-  snapshot: CommandCenterSnapshot
-  selectedTrace: DecisionTraceRawRecord | null
-  selectedReplay: LiveSystemReplayResponse | null
-}) {
-  const header = deriveHeader(snapshot, selectedTrace, selectedReplay)
-
-  return (
-    <section className="rounded-[30px] border border-cyan-300/14 bg-[linear-gradient(135deg,rgba(5,15,33,0.98),rgba(3,7,18,0.94))] p-5 shadow-[0_40px_160px_rgba(2,6,23,0.62)]">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.28em] text-cyan-300">
-            <Radar className="h-4 w-4" />
-            <span>Command Center</span>
-          </div>
-          <div>
-            <h1 className="text-3xl font-black tracking-[-0.05em] text-white sm:text-5xl">
-              Active global execution authority.
-            </h1>
-            <p className="mt-3 max-w-4xl text-sm text-slate-300">
-              Decisions are issued before execution, water can block workloads, every frame is traceable,
-              and replay stays pinned to the original decision inputs.
-            </p>
-          </div>
-        </div>
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Live posture</div>
-          <div className="mt-2 text-lg font-semibold text-white">
-            {header.systemStatus.toUpperCase()}
-          </div>
-          <div className="mt-2 max-w-sm text-xs text-slate-400">{header.detail}</div>
-        </div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap gap-3">
-        <MetricChip icon={Activity} label="System Active" state={header.systemActive} />
-        <MetricChip icon={ShieldCheck} label="SAIQ Enforced" state={header.saiqEnforced} />
-        <MetricChip icon={Lock} label="Trace Locked" state={header.traceLocked} />
-        <MetricChip icon={RefreshCw} label="Replay Verified" state={header.replayVerified} />
-      </div>
-    </section>
-  )
-}
-
-function WorldExecutionGrid({
-  model,
-  selectedFrameId,
-  onSelectFrame,
-}: {
-  model: { nodes: WorldRegionState[]; flows: WorldRoutingFlow[] }
-  selectedFrameId: string | null
-  onSelectFrame: (decisionFrameId: string) => void
-}) {
-  const nodeMap = new Map(model.nodes.map((node) => [node.region, node]))
-
-  function buildPath(flow: WorldRoutingFlow) {
-    const from = nodeMap.get(flow.fromRegion)
-    const to = nodeMap.get(flow.toRegion)
-    if (!from || !to) return ''
-    const controlX = (from.x + to.x) / 2
-    const controlY = Math.min(from.y, to.y) - 10
-    return `M ${from.x} ${from.y} Q ${controlX} ${controlY} ${to.x} ${to.y}`
-  }
-
-  return (
-    <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_35%),linear-gradient(180deg,rgba(2,6,23,0.96),rgba(2,8,23,0.88))] p-4 sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">World execution grid</div>
-          <div className="mt-1 text-lg font-semibold text-white">Live routing posture by region.</div>
-        </div>
-        <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-slate-300">
-          {model.nodes.length} live regions
-        </div>
-      </div>
-
-      <div className="relative min-h-[420px] rounded-[28px] border border-white/8 bg-slate-950/70">
-        <svg viewBox="0 0 100 60" className="absolute inset-0 h-full w-full">
-          <defs>
-            <linearGradient id="command-flow" x1="0%" x2="100%">
-              <stop offset="0%" stopColor="rgba(34,211,238,0.2)" />
-              <stop offset="50%" stopColor="rgba(45,212,191,0.95)" />
-              <stop offset="100%" stopColor="rgba(132,204,22,0.3)" />
-            </linearGradient>
-            <linearGradient id="blocked-flow" x1="0%" x2="100%">
-              <stop offset="0%" stopColor="rgba(251,113,133,0.15)" />
-              <stop offset="50%" stopColor="rgba(244,63,94,0.95)" />
-              <stop offset="100%" stopColor="rgba(251,191,36,0.15)" />
-            </linearGradient>
-          </defs>
-
-          {Array.from({ length: 5 }).map((_, index) => (
-            <line
-              key={`lat-${index}`}
-              x1={0}
-              y1={10 + index * 10}
-              x2={100}
-              y2={10 + index * 10}
-              stroke="rgba(148,163,184,0.08)"
-              strokeWidth="0.22"
-            />
-          ))}
-          {Array.from({ length: 6 }).map((_, index) => (
-            <line
-              key={`lon-${index}`}
-              x1={10 + index * 15}
-              y1={0}
-              x2={10 + index * 15}
-              y2={60}
-              stroke="rgba(148,163,184,0.08)"
-              strokeWidth="0.22"
-            />
-          ))}
-
-          <path d="M8 18C13 14 24 13 31 17C34 19 34 24 28 26C20 29 10 28 7 24C5 22 5 20 8 18Z" fill="rgba(15,23,42,0.92)" stroke="rgba(56,189,248,0.09)" strokeWidth="0.4" />
-          <path d="M42 14C48 10 59 11 63 16C67 21 65 26 58 28C49 31 41 28 39 22C38 19 39 16 42 14Z" fill="rgba(15,23,42,0.92)" stroke="rgba(56,189,248,0.09)" strokeWidth="0.4" />
-          <path d="M69 18C74 15 84 16 88 20C91 23 89 28 84 30C78 33 70 32 67 27C65 24 66 20 69 18Z" fill="rgba(15,23,42,0.92)" stroke="rgba(56,189,248,0.09)" strokeWidth="0.4" />
-          <path d="M77 37C81 34 87 34 90 38C92 41 90 45 86 47C81 49 76 48 74 44C73 41 74 39 77 37Z" fill="rgba(15,23,42,0.92)" stroke="rgba(56,189,248,0.09)" strokeWidth="0.4" />
-
-          {model.flows.map((flow) => {
-            const path = buildPath(flow)
-            if (!path) return null
-            const stroke = flow.mode === 'route' ? 'url(#command-flow)' : 'url(#blocked-flow)'
-            return (
-              <motion.path
-                key={flow.id}
-                d={path}
-                fill="none"
-                stroke={stroke}
-                strokeWidth="1.25"
-                strokeLinecap="round"
-                initial={{ pathLength: 0.2, opacity: 0.5 }}
-                animate={{ pathLength: 1, opacity: [0.45, 1, 0.45] }}
-                transition={{ duration: 2.6, repeat: Infinity, ease: 'linear' }}
-              />
-            )
-          })}
-
-          {model.nodes.map((node) => {
-            const selected = node.decisionFrameId === selectedFrameId
-            const nodeTone =
-              node.state === 'active'
-                ? 'rgba(34,197,94,0.95)'
-                : node.state === 'blocked'
-                  ? 'rgba(244,63,94,0.95)'
-                  : 'rgba(250,204,21,0.95)'
-            return (
-              <g
-                key={node.region}
-                onClick={() => node.decisionFrameId && onSelectFrame(node.decisionFrameId)}
-                className={clsx(node.decisionFrameId ? 'cursor-pointer' : 'pointer-events-none')}
-              >
-                <motion.circle
-                  cx={node.x}
-                  cy={node.y}
-                  r={selected ? 2.6 : 1.9}
-                  fill={nodeTone}
-                  stroke="rgba(255,255,255,0.85)"
-                  strokeWidth="0.35"
-                  animate={{ opacity: [0.65, 1, 0.65] }}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                />
-                <circle cx={node.x} cy={node.y} r={selected ? 4.2 : 3.2} fill="none" stroke={nodeTone} strokeWidth="0.25" opacity={selected ? 0.75 : 0.34} />
-                <text x={node.x + 1.6} y={node.y - 1.8} fill="rgba(226,232,240,0.88)" fontSize="2.5" fontWeight="600">
-                  {node.label}
-                </text>
-              </g>
-            )
-          })}
-        </svg>
-
-        <div className="pointer-events-none absolute inset-x-5 bottom-5 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.22em]">
-          <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-emerald-200">Green active</div>
-          <div className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-amber-100">Yellow marginal</div>
-          <div className="rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-1 text-rose-200">Red blocked</div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DecisionPipelineRail({
-  selectedTrace,
-  governance,
-  selectedDecision,
-}: {
-  selectedTrace: DecisionTraceRawRecord | null
-  governance: SaiqGovernanceSnapshot
-  selectedDecision: CommandCenterDecisionItem | null
-}) {
-  const stages = [
-    { label: 'Signals', value: selectedTrace ? `${selectedTrace.payload.normalizedSignals.candidates.length} candidates` : 'Unavailable' },
-    { label: 'SAIQ', value: governance.source ?? 'Unavailable' },
-    { label: 'Policy', value: governance.enforcementMode ?? 'Unavailable' },
-    { label: 'Decision', value: selectedDecision ? resolveActionMeta(selectedDecision.action).label : 'Unavailable' },
-    { label: 'Proof', value: selectedDecision?.proofHash ? shortHash(selectedDecision.proofHash, 10) : 'Unavailable' },
-  ]
-
-  return (
-    <div className="mt-5 grid gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))]">
-      {stages.map((stage, index) => (
-        <div key={stage.label} className="relative overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.04] p-3">
-          <motion.div
-            className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent"
-            animate={{ x: ['-100%', '100%'] }}
-            transition={{ duration: 2.6, repeat: Infinity, ease: 'linear', delay: index * 0.12 }}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <div style={{ position: 'relative' }}>
+          <div style={{ width: 8, height: 8, borderRadius: '999px', background: A.run_now }} />
+          <div
+            style={{
+              position: 'absolute',
+              inset: -4,
+              borderRadius: '999px',
+              background: hex(A.run_now, 0.35),
+              animation: 'hallogrid-pulse 2.5s ease-in-out infinite',
+            }}
           />
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{stage.label}</div>
-          <div className="mt-2 text-sm font-semibold text-white">{stage.value}</div>
         </div>
-      ))}
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--m)', fontSize: 11, letterSpacing: '0.12em' }}>
+            <span style={{ color: P.t0, fontWeight: 700 }}>CO2 ROUTER</span>
+            <span style={{ padding: '3px 9px', borderRadius: 999, border: `1px solid ${hex(P.accent, 0.28)}`, background: hex(P.accent, 0.08), color: '#dbeafe' }}>CONSOLE</span>
+            <span style={{ color: P.accent }}>HALLOGRID</span>
+          </div>
+          <div style={{ color: P.t2, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {title} | {subtitle}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.24) : hex(A.reroute, 0.28)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+          <Radar size={12} />
+          {streamHealthy ? 'LIVE MIRROR' : 'FALLBACK PATH'}
+        </div>
+        <div style={{ color: P.t2, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.06em' }}>
+          REFRESHED {ago(generatedAt)}
+        </div>
+      </div>
     </div>
   )
 }
 
-function DecisionEngineCore({
-  selectedDecision,
-  selectedTrace,
-  selectedReplay,
-  governance,
-}: {
-  selectedDecision: CommandCenterDecisionItem | null
-  selectedTrace: DecisionTraceRawRecord | null
-  selectedReplay: LiveSystemReplayResponse | null
-  governance: SaiqGovernanceSnapshot
-}) {
-  const meta = selectedDecision ? resolveActionMeta(selectedDecision.action) : resolveActionMeta('run_now')
+function TelemetryStrip({ frames }: { frames: HallOGridFrame[] }) {
+  const s = useMemo(() => {
+    const counts = { run_now: 0, deny: 0, reroute: 0, delay: 0, throttle: 0 }
+    let lat = 0
+    let latN = 0
+    let conf = 0
+    let confN = 0
+    frames.forEach((f) => {
+      counts[f.action] += 1
+      if (f.metrics.totalLatencyMs != null) {
+        lat += f.metrics.totalLatencyMs
+        latN += 1
+      }
+      if (f.metrics.signalConfidence != null) {
+        conf += f.metrics.signalConfidence
+        confN += 1
+      }
+    })
+    return { ...counts, latency: latN ? Math.round(lat / latN) : null, confidence: confN ? conf / confN : null }
+  }, [frames])
+
+  const items = [
+    { key: 'run_now', label: 'RUN NOW', value: s.run_now, color: A.run_now, pulse: s.run_now > 0 },
+    { key: 'deny', label: 'DENY', value: s.deny, color: A.deny, pulse: false },
+    { key: 'reroute', label: 'REROUTE', value: s.reroute, color: A.reroute, pulse: false },
+    { key: 'delay', label: 'DELAY', value: s.delay, color: A.delay, pulse: false },
+    { key: 'throttle', label: 'THROTTLE', value: s.throttle, color: A.throttle, pulse: false },
+  ] as const
 
   return (
-    <div className="relative z-10 rounded-[32px] border border-white/12 bg-[linear-gradient(180deg,rgba(5,15,33,0.88),rgba(2,6,23,0.95))] p-5 shadow-[0_24px_100px_rgba(0,0,0,0.45)] backdrop-blur">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Decision core</div>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">
-            {selectedDecision ? resolveActionMeta(selectedDecision.action).label : 'Awaiting frame'}
-          </h2>
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.2em] text-slate-300">
-            <span className={clsx('rounded-full border px-3 py-1', meta.badge, meta.border)}>
-              {selectedDecision?.selectedRegion ?? 'No region'}
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">
-              {selectedDecision?.reasonCode ?? 'No decision selected'}
-            </span>
-          </div>
-        </div>
-        <div className="grid gap-2 text-right text-xs text-slate-300">
-          <div>Proof {shortHash(selectedDecision?.proofHash)}</div>
-          <div>Trace {selectedDecision?.traceAvailable ? 'locked' : 'unavailable'}</div>
-          <div>Replay {selectedReplay ? (selectedReplay.deterministicMatch ? 'verified' : 'mismatch') : 'unavailable'}</div>
-        </div>
+    <div
+      style={{
+        position: 'fixed',
+        top: HEADER_HEIGHT,
+        left: 0,
+        right: 0,
+        zIndex: 118,
+        height: STRIP_HEIGHT,
+        padding: '0 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 16,
+        borderBottom: `1px solid ${P.border}`,
+        background: `linear-gradient(180deg, ${P.bg2}ed 0%, ${P.bg1}cf 100%)`,
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, overflowX: 'auto', scrollbarWidth: 'none', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
+        {items.map((item) => {
+          const active = item.value > 0
+          return (
+            <div key={item.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: active ? item.color : hex(item.color, 0.56), textShadow: item.pulse ? `0 0 12px ${hex(item.color, 0.42)}` : 'none' }}>
+              <span style={{ fontWeight: 700, animation: item.pulse ? 'hallogrid-pulse-soft 2.6s ease-in-out infinite' : 'none' }}>{item.value}</span>
+              <span style={{ color: active ? P.t1 : P.t3 }}>{item.label}</span>
+            </div>
+          )
+        })}
       </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
-        <div className={clsx('rounded-[26px] border bg-white/[0.03] p-5', meta.border, meta.glow)}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Decision frame</div>
-              <div className="mt-2 font-mono text-sm text-white">{selectedDecision?.decisionFrameId ?? 'Unavailable'}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Latency</div>
-              <div className="mt-2 text-sm text-white">
-                {selectedDecision?.latencyTotalMs?.toFixed(0) ?? '--'}ms total / {selectedDecision?.latencyComputeMs?.toFixed(0) ?? '--'}ms compute
-              </div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Baseline region</div>
-              <div className="mt-2 text-sm text-white">{selectedReplay?.persisted?.baseline.region ?? selectedReplay?.replay.baseline.region ?? 'Unavailable'}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Water authority</div>
-              <div className="mt-2 text-sm text-white">{selectedDecision?.waterAuthorityMode ?? 'Unavailable'}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">SAIQ source</div>
-              <div className="mt-2 text-sm text-white">{governance.source ?? 'Unavailable'}</div>
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Selected score</div>
-              <div className="mt-2 text-sm text-white">{governance.selectedScore != null ? governance.selectedScore.toFixed(3) : 'Unavailable'}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Authority path</div>
-          <div className="mt-2 text-lg font-semibold text-white">{selectedDecision?.reasonCode ?? 'No active decision'}</div>
-          <div className="mt-4 space-y-2 text-sm text-slate-300">
-            <div>Action: <span className={meta.text}>{meta.label}</span></div>
-            <div>Signal posture: {selectedDecision?.signalMode ?? 'Unavailable'} / accounting {selectedDecision?.accountingMethod ?? 'Unavailable'}</div>
-            <div>Water can block: {selectedDecision?.systemState === 'blocked' ? 'yes' : 'not on current frame'}</div>
-            <div>Constraints applied: {governance.impact.constraintsApplied}</div>
-          </div>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0, color: P.t2, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+        <span style={{ color: '#dbeafe' }}>{s.latency != null ? `${s.latency}MS` : 'LAT N/A'}</span>
+        <span style={{ color: confidenceColor(s.confidence), fontWeight: 700 }}>
+          CONF {s.confidence != null ? s.confidence.toFixed(1) : '--'}
+        </span>
       </div>
-
-      <DecisionPipelineRail selectedTrace={selectedTrace} governance={governance} selectedDecision={selectedDecision} />
     </div>
   )
 }
 
-function SaiqGovernanceEngine({ governance }: { governance: SaiqGovernanceSnapshot }) {
-  return (
-    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,10,24,0.96),rgba(3,9,20,0.92))] p-5">
-      <div className="flex items-center gap-3">
-        <ShieldCheck className="h-5 w-5 text-cyan-300" />
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">SAIQ governance layer</div>
-          <div className="mt-1 text-lg font-semibold text-white">Weighted execution authority.</div>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">State</div>
-          <div className="mt-2 text-sm text-white">Source: {governance.source ?? 'Unavailable'}</div>
-          <div className="mt-1 text-sm text-white">
-            Strict: {governance.strict == null ? 'Unavailable' : governance.strict ? 'On' : 'Off'}
-          </div>
-          <div className="mt-1 text-sm text-white">Mode: {governance.enforcementMode ?? 'Unavailable'}</div>
-          <div className="mt-3 text-3xl font-black tracking-[-0.05em] text-cyan-200">
-            {governance.selectedScore != null ? governance.selectedScore.toFixed(3) : '---'}
-          </div>
-        </div>
-
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">SAIQ Weights</div>
-          {governance.weights ? (
-            <div className="mt-3 grid gap-2 text-sm text-slate-200">
-              <div>Carbon {governance.weights.carbon?.toFixed(2) ?? 'Unavailable'}</div>
-              <div>Water {governance.weights.water?.toFixed(2) ?? 'Unavailable'}</div>
-              <div>Latency {governance.weights.latency?.toFixed(2) ?? 'Unavailable'}</div>
-              <div>Cost {governance.weights.cost?.toFixed(2) ?? 'Unavailable'}</div>
-            </div>
-          ) : (
-            <div className="mt-3 space-y-1 text-sm text-slate-400">
-              <div>Unavailable</div>
-              <div>Not exposed by current live decision payload</div>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Thresholds</div>
-          {governance.thresholds ? (
-            <div className="mt-3 grid gap-2 text-sm text-slate-200">
-              {Object.entries(governance.thresholds).map(([key, value]) => (
-                <div key={key} className="flex items-center justify-between gap-3">
-                  <span className="text-slate-400">{key}</span>
-                  <span>{value != null ? value.toFixed(2) : 'Unavailable'}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-3 text-sm text-slate-400">Unavailable</div>
-          )}
-        </div>
-
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Impact</div>
-          <div className="mt-3 grid gap-2 text-sm text-slate-200">
-            <div>Carbon delta {governance.impact.carbonReductionPct?.toFixed(1) ?? '--'}%</div>
-            <div>Water delta {governance.impact.waterImpactDeltaLiters?.toFixed(2) ?? '--'} L</div>
-            <div>Signal confidence {governance.impact.signalConfidence?.toFixed(2) ?? '--'}</div>
-            <div>Constraints {governance.impact.constraintsApplied}</div>
-            <div>Cache hit {governance.impact.cacheHit == null ? 'Unavailable' : governance.impact.cacheHit ? 'yes' : 'no'}</div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function SystemHealthPanel({ providers, snapshot }: { providers: ControlSurfaceProviderNode[]; snapshot: CommandCenterSnapshot['health'] }) {
-  return (
-    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,10,24,0.96),rgba(3,9,20,0.92))] p-5">
-      <div className="flex items-center gap-3">
-        <Activity className="h-5 w-5 text-emerald-300" />
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">System health</div>
-          <div className="mt-1 text-lg font-semibold text-white">Latency, provenance, and signal state.</div>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Latency</div>
-        <div className="mt-3 grid gap-2 text-sm text-slate-200">
-          <div>Samples {snapshot.latency.samples ?? 'Unavailable'}</div>
-          <div>p95 total {snapshot.latency.p95TotalMs?.toFixed(0) ?? '--'} ms</div>
-          <div>p95 compute {snapshot.latency.p95ComputeMs?.toFixed(0) ?? '--'} ms</div>
-          <div>Budget {snapshot.latency.budgetTotalP95Ms ?? '--'} / {snapshot.latency.budgetComputeP95Ms ?? '--'} ms</div>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Provenance</div>
-        <div className="mt-3 grid gap-2 text-sm">
-          {snapshot.provenance.datasets.map((dataset) => (
-            <div key={dataset.name} className="flex items-center justify-between gap-3">
-              <span className="uppercase tracking-[0.16em] text-slate-400">{dataset.name}</span>
-              <span className="text-white">{dataset.verificationStatus}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Providers</div>
-        <div className="mt-3 space-y-2">
-          {providers.slice(0, 6).map((provider) => (
-            <div key={provider.id} className="rounded-[16px] border border-white/8 bg-slate-950/60 px-3 py-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-medium text-white">{provider.label}</div>
-                <span className={clsx('rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em]', getStatusTone(provider.status === 'healthy' ? 'active' : provider.status === 'offline' ? 'blocked' : 'marginal'))}>
-                  {provider.statusLabel ?? provider.status}
-                </span>
-              </div>
-              <div className="mt-1 text-xs text-slate-400">
-                {provider.providerType === 'water'
-                  ? `bundle age ${formatSecondsCompact(provider.freshnessSec)} / ttl ${formatSecondsCompact(provider.ttlSec)}`
-                  : `staleness ${formatSecondsCompact(provider.freshnessSec)} / latency ${provider.latencyMs != null ? `${provider.latencyMs}ms` : 'unavailable'}`}
-              </div>
-              {provider.providerType === 'water' ? (
-                <div className="mt-1 text-xs text-slate-500">
-                  provenance {provider.provenanceStatus ?? 'unavailable'}
-                </div>
-              ) : null}
-              {provider.degradedReason ? (
-                <div className="mt-1 text-xs text-amber-200/90">{provider.degradedReason}</div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function ProjectionFreshnessBanner({
-  projection,
+function FeedCard({
+  f,
+  active,
+  anyActive,
+  onTap,
 }: {
-  projection: CommandCenterSnapshot['projection']
+  f: HallOGridFrame
+  active: boolean
+  anyActive: boolean
+  onTap: (id: string) => void
 }) {
-  const tone =
-    projection.dataStatus === 'healthy'
-      ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100'
-      : projection.dataStatus === 'degraded'
-        ? 'border-amber-400/25 bg-amber-400/10 text-amber-100'
-        : 'border-rose-400/25 bg-rose-400/10 text-rose-100'
-
-  const headline =
-    projection.dataStatus === 'healthy'
-      ? 'Projection healthy'
-      : projection.dataStatus === 'degraded'
-        ? 'Projection delayed'
-        : projection.dataStatus === 'stale'
-          ? 'Projection stale'
-          : 'Projection broken'
-
-  const detail =
-    projection.dataStatus === 'healthy'
-      ? 'Dashboard projection is keeping pace with canonical decisions.'
-      : projection.dataStatus === 'degraded'
-        ? 'Canonical decisions remain live, but the dashboard projection is lagging and should be treated as delayed.'
-        : projection.dataStatus === 'stale'
-          ? 'Canonical decisions are the source of truth right now. Derived dashboard views are stale and should not be treated as live authority.'
-          : 'Projection freshness cannot support a live dashboard claim. Treat the canonical decision stream as authoritative until the projector recovers.'
+  const c = A[f.action]
+  const meta = ACTION_META[f.action]
+  const conf = f.metrics.signalConfidence
+  const confColor = confidenceColor(conf)
 
   return (
-    <section className={clsx('rounded-[24px] border p-4', tone)}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-white/70">Projection freshness</div>
-          <div className="mt-2 text-lg font-semibold text-white">{headline}</div>
-          <div className="mt-2 max-w-3xl text-sm text-white/80">{detail}</div>
+    <button
+      type="button"
+      onClick={() => onTap(f.id)}
+      style={{
+        cursor: 'pointer',
+        width: '100%',
+        padding: '16px 18px',
+        position: 'relative',
+        overflow: 'hidden',
+        textAlign: 'left',
+        background: active ? `linear-gradient(145deg, ${hex(c, 0.14)} 0%, ${P.glass2} 100%)` : P.glass,
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        border: `1px solid ${active ? hex(c, 0.5) : P.border}`,
+        borderRadius: 14,
+        boxShadow: active ? `0 0 30px ${hex(c, 0.2)}, 0 8px 32px rgba(0,0,0,0.52), inset 0 1px 0 ${hex(c, 0.15)}` : '0 4px 20px rgba(0,0,0,0.4)',
+        transform: active ? 'scale(1.02) translateZ(40px)' : anyActive ? 'scale(0.98)' : 'scale(1)',
+        opacity: anyActive && !active ? 0.44 : 1,
+        transition: 'all 0.35s cubic-bezier(0.16,1,0.3,1)',
+      }}
+      aria-expanded={active}
+    >
+      <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 999, background: c, boxShadow: active ? `0 0 16px ${hex(c, 0.7)}` : `0 0 8px ${hex(c, 0.4)}` }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 10, marginBottom: 10 }}>
+        <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t2, letterSpacing: '0.05em' }}>{f.id}</span>
+        <div style={{ fontFamily: 'var(--m)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: c, padding: '3px 12px', borderRadius: 999, background: hex(c, 0.12), border: `1px solid ${hex(c, 0.25)}` }}>{meta.label.toUpperCase()}</div>
+      </div>
+      <div style={{ paddingLeft: 10, marginBottom: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: P.t0, letterSpacing: '-0.01em' }}>{f.explanation.headline}</div>
+        <div style={{ fontSize: 11, color: P.t2, marginTop: 3 }}>
+          {f.region} | {f.workloadClass}
+          {f.trust.degraded ? <span style={{ color: A.reroute, marginLeft: 8 }}>guarded</span> : null}
         </div>
-        <div className="grid gap-2 text-xs text-white/80 sm:grid-cols-2 lg:min-w-[360px]">
-          <div>Lag {formatSecondsCompact(projection.projectionLagSec)}</div>
-          <div>Latest projection {projection.latestProjectionAt ? formatAgo(projection.latestProjectionAt) : 'Unavailable'}</div>
-          <div>Latest canonical {projection.latestCanonicalAt ? formatAgo(projection.latestCanonicalAt) : 'Unavailable'}</div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingLeft: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `radial-gradient(circle at 30% 30%, ${hex(confColor, 0.24)} 0%, ${hex(confColor, 0.08)} 100%)`, border: `1.5px solid ${hex(confColor, 0.45)}`, boxShadow: `0 0 12px ${hex(confColor, 0.2)}` }}>
+            <span style={{ fontFamily: 'var(--m)', fontSize: 10, fontWeight: 700, color: confColor }}>{confidenceGrade(conf)}</span>
+          </div>
           <div>
-            Quality {projection.quality.suspectCount} suspect / {projection.quality.invalidCount} invalid
+            <span style={{ fontFamily: 'var(--m)', fontSize: 13, fontWeight: 700, color: confColor }}>{conf != null ? conf.toFixed(1) : '--'}</span>
+            <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3, marginLeft: 4 }}>CONF</span>
           </div>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+            {[f.traceState === 'locked', f.proofState === 'available', f.replayState === 'verified'].map((ok, index) => (
+              <div key={index} style={{ width: 5, height: 5, borderRadius: '50%', background: ok ? A.run_now : A.deny, boxShadow: `0 0 5px ${hex(ok ? A.run_now : A.deny, 0.5)}` }} />
+            ))}
+            <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3, marginLeft: 2 }}>proof</span>
+          </div>
+          <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3 }}>{ms(f.metrics.totalLatencyMs)}</span>
+          <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3 }}>{ago(f.createdAt)}</span>
+        </div>
       </div>
-    </section>
+    </button>
   )
 }
 
-function PersistentInspectorPanel({
-  activePanel,
-  onSelectPanel,
-  selectedDecision,
-  selectedTrace,
-  selectedReplay,
-  activeProofHash,
-  activeEvidenceRefs,
-  activeProviderRefs,
-}: {
-  activePanel: InspectorPanelMode
-  onSelectPanel: (panel: InspectorPanelMode) => void
-  selectedDecision: CommandCenterDecisionItem | null
-  selectedTrace: DecisionTraceRawRecord | null
-  selectedReplay: LiveSystemReplayResponse | null
-  activeProofHash: string | null
-  activeEvidenceRefs: string[]
-  activeProviderRefs: string[]
-}) {
-  const panels: Array<{ id: InspectorPanelMode; label: string }> = [
-    { id: 'trace', label: 'Trace' },
-    { id: 'replay', label: 'Replay' },
-    { id: 'proof', label: 'Proof' },
-  ]
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  return <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10, background: hex('#ffffff', 0.04), border: `1px solid ${P.border}` }}><div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.08em', marginBottom: 8 }}>{title}</div>{children}</div>
+}
+
+function Row({ label, value, color }: { label: string; value: string; color?: string }) {
+  return <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '5px 0' }}><span style={{ fontSize: 11, color: P.t2 }}>{label}</span><span style={{ fontSize: 11, color: color ?? P.t1, fontFamily: 'var(--m)', fontWeight: 500, textAlign: 'right' }}>{value}</span></div>
+}
+
+function Bar({ label, value }: { label: string; value: number | null | undefined }) {
+  const amount = value ?? 0
+  const width = Math.min(amount, 100)
+  const color = amount >= 85 ? A.run_now : amount >= 70 ? A.reroute : A.deny
 
   return (
-    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,10,24,0.96),rgba(3,9,20,0.92))] p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+        <span style={{ fontSize: 10, color: P.t2, textTransform: 'capitalize' }}>{label}</span>
+        <span style={{ fontSize: 10, color: P.t2, fontFamily: 'var(--m)' }}>{value == null ? 'Unavailable' : value.toFixed(1)}</span>
+      </div>
+      <div style={{ height: 4, borderRadius: 3, background: hex('#ffffff', 0.04) }}>
+        <div style={{ height: '100%', borderRadius: 3, width: `${width}%`, background: `linear-gradient(90deg, ${color}, ${hex(color, 0.6)})`, boxShadow: `0 0 10px ${hex(color, 0.35)}` }} />
+      </div>
+    </div>
+  )
+}
+
+type ProjectedNode = {
+  node: WorldRegionState
+  screenX: number
+  screenY: number
+  depth: number
+  opacity: number
+  scale: number
+  color: string
+}
+
+function GlobePanel({
+  nodes,
+  flows,
+  selectedRegion,
+  projectionLagSec,
+  streamHealthy,
+  expanded,
+}: {
+  nodes: WorldRegionState[]
+  flows: WorldRoutingFlow[]
+  selectedRegion: string | null
+  projectionLagSec: number | null
+  streamHealthy: boolean
+  expanded: boolean
+}) {
+  const [rotation, setRotation] = useState(0)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (media.matches) return
+
+    const interval = window.setInterval(() => {
+      setRotation((current) => (current + 0.65) % 360)
+    }, 40)
+
+    return () => window.clearInterval(interval)
+  }, [])
+
+  const globeSize = expanded ? 520 : 420
+  const radius = expanded ? 200 : 160
+  const center = globeSize / 2
+  const glowRadius = radius + (expanded ? 10 : 8)
+
+  const projected = useMemo<ProjectedNode[]>(() => {
+    return nodes
+      .map((node) => {
+        const lon = (node.x / 100) * 360 - 180
+        const lat = 90 - (node.y / 100) * 180
+        const lonRad = ((lon + rotation) * Math.PI) / 180
+        const latRad = (lat * Math.PI) / 180
+        const x = Math.cos(latRad) * Math.sin(lonRad)
+        const y = Math.sin(latRad)
+        const z = Math.cos(latRad) * Math.cos(lonRad)
+
+        return {
+          node,
+          screenX: center + radius * x,
+          screenY: center - radius * y,
+          depth: z,
+          opacity: Math.max(0.16, 0.32 + ((z + 1) / 2) * 0.88),
+          scale: 0.58 + ((z + 1) / 2) * 0.72,
+          color: worldStateColor(node),
+        }
+      })
+      .sort((a, b) => a.depth - b.depth)
+  }, [nodes, rotation])
+
+  const visibleByRegion = useMemo(() => new Map(projected.map((item) => [item.node.region, item])), [projected])
+
+  const flowPaths = useMemo(() => {
+    return flows
+      .map((flow) => {
+        const from = visibleByRegion.get(flow.fromRegion)
+        const to = visibleByRegion.get(flow.toRegion)
+        if (!from || !to) return null
+        if (from.depth < 0.02 || to.depth < 0.02) return null
+
+        const controlX = (from.screenX + to.screenX) / 2
+        const controlY =
+          Math.min(from.screenY, to.screenY) -
+          24 -
+          Math.abs(from.screenX - to.screenX) * 0.08 -
+          Math.abs(from.screenY - to.screenY) * 0.06
+
+        return {
+          id: flow.id,
+          d: `M ${from.screenX} ${from.screenY} Q ${controlX} ${controlY} ${to.screenX} ${to.screenY}`,
+          color: flow.mode === 'blocked' ? A.deny : P.accent,
+          opacity: Math.min(from.opacity, to.opacity) * (flow.mode === 'blocked' ? 0.9 : 0.72),
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item != null)
+  }, [flows, visibleByRegion])
+
+  const activeCount = nodes.filter((node) => node.state === 'active').length
+  const blockedCount = nodes.filter((node) => node.state === 'blocked').length
+  const selectedNode = selectedRegion ? nodes.find((node) => node.region === selectedRegion) ?? null : null
+
+  return (
+    <div style={{ padding: '18px 18px 16px', borderRadius: 24, background: `linear-gradient(180deg, ${hex(P.accent, 0.02)} 0%, ${hex(P.accent, 0.01)} 42%, ${hex('#020309', 0.92)} 76%, ${hex('#000000', 0.98)} 100%)`, border: `1px solid ${hex(P.accent, 0.12)}`, boxShadow: `0 24px 60px ${hex('#000000', 0.36)}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Persistent inspector</div>
-          <div className="mt-1 text-lg font-semibold text-white">Selected decision detail.</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.12em', color: '#dbeafe' }}>
+            <Globe2 size={13} />
+            LIVE GRID THEATER
+          </div>
+          <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>
+            Spinning world state with live routing lanes and selected-region emphasis.
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {panels.map((panel) => (
-            <button
-              key={panel.id}
-              type="button"
-              onClick={() => onSelectPanel(panel.id)}
-              className={clsx(
-                'rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] transition',
-                activePanel === panel.id
-                  ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100'
-                  : 'border-white/10 bg-white/[0.04] text-slate-300'
-              )}
-            >
-              {panel.label}
+        <div style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.2) : hex(A.reroute, 0.24)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+          {streamHealthy ? 'STREAM HEALTHY' : 'STREAM GUARDED'}
+        </div>
+      </div>
+
+        <div style={{ marginTop: 16, display: expanded ? 'flex' : 'grid', flexDirection: expanded ? 'column' : undefined, gridTemplateColumns: expanded ? undefined : 'minmax(0, 1fr) 170px', gap: expanded ? 16 : 14, alignItems: 'center' }}>
+        <div style={{ position: 'relative', minHeight: expanded ? 440 : 320, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 38%,  0%,  46%,  100%)` }}>
+          <div style={{ position: 'absolute', inset: expanded ? 22 : 18, borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 22%, rgba(7,12,22,0.1) 55%, rgba(4,6,8,0.94) 100%)', boxShadow: `inset 0 0 36px , 0 0 22px ` }} />
+          <svg viewBox={`0 0 ${globeSize} ${globeSize}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+            <defs>
+              <filter id="hallogrid-flow-glow">
+                <feGaussianBlur stdDeviation="2.2" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <radialGradient id="hallogrid-globe-core" cx="50%" cy="50%" r="58%">
+                <stop offset="0%" stopColor="rgba(20,28,46,0.02)" />
+                <stop offset="45%" stopColor="rgba(8,12,24,0.06)" />
+                <stop offset="72%" stopColor="rgba(2,4,10,0.55)" />
+                <stop offset="100%" stopColor="rgba(0,1,4,0.9)" />
+              </radialGradient>
+              <radialGradient id="hallogrid-atmosphere" cx="50%" cy="50%" r="60%">
+                <stop offset="0%" stopColor="rgba(120,170,255,0.015)" />
+                <stop offset="55%" stopColor="rgba(80,120,220,0.05)" />
+                <stop offset="100%" stopColor="rgba(30,50,120,0.09)" />
+              </radialGradient>
+            </defs>
+            <circle cx={center} cy={center} r={glowRadius} fill="url(#hallogrid-atmosphere)" />
+            <circle cx={center} cy={center} r={radius} fill="url(#hallogrid-globe-core)" />
+            <circle cx={center} cy={center} r={radius} fill="transparent" stroke={P.borderLit} strokeWidth="1.2" />
+            {[0.18, 0.32, 0.46, 0.6, 0.74].map((ratio, index) => (
+              <ellipse
+                key={`lat-${ratio}`}
+                cx={center}
+                cy={center}
+                rx={radius}
+                ry={radius * ratio}
+                fill="transparent"
+                stroke={hex(P.accent, 0.28 - index * 0.03)}
+                strokeWidth="0.8"
+              />
+            ))}
+            {[0.18, 0.36, 0.54, 0.72].map((ratio, index) => (
+              <ellipse
+                key={`lon-${ratio}`}
+                cx={center}
+                cy={center}
+                rx={radius * ratio}
+                ry={radius}
+                fill="transparent"
+                stroke={hex(P.accent, 0.24 - index * 0.03)}
+                strokeWidth="0.8"
+                transform={`rotate(${rotation * (0.25 + index * 0.06)} ${center} ${center})`}
+              />
+            ))}
+            {flowPaths.map((flow) => (
+              <path key={flow.id} d={flow.d} fill="none" stroke={flow.color} strokeOpacity={flow.opacity} strokeWidth={1.7} filter="url(#hallogrid-flow-glow)" />
+            ))}
+            {projected.map((item) => {
+              const isSelected = item.node.region === selectedRegion
+              const isLive = item.node.state === 'active'
+              const isMarginal = item.node.state === 'marginal'
+              const beaconAnim = isLive ? 'hallogrid-beacon-fast 1.1s ease-in-out infinite' : isMarginal ? 'hallogrid-beacon-slow 2.6s ease-in-out infinite' : 'none'
+              return (
+                <g key={item.node.region} opacity={item.opacity}>
+                  
+                  <circle
+                    cx={item.screenX}
+                    cy={item.screenY}
+                    r={5 * item.scale}
+                    fill={item.color}
+                    stroke={isSelected ? "#ffffff" : hex(item.color, 0.6)}
+                    strokeWidth={isSelected ? 2 : 1}
+                    filter="url(#hallogrid-flow-glow)"
+                    style={{ animation: beaconAnim }}
+                  />
+                  
+                  
+                </g>
+              )
+            })}
+          </svg>
+          <div style={{ position: 'absolute', left: 16, bottom: 14, padding: '6px 10px', borderRadius: 999, background: hex('#000000', 0.38), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
+            {selectedNode ? `SELECTED ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: expanded ? 'row' : 'column', gap: 10, flexWrap: expanded ? 'wrap' : 'nowrap' }}>
+          <Block title="ROUTING PULSE">
+            <Row label="Active nodes" value={String(activeCount)} color={A.run_now} />
+            <Row label="Blocked nodes" value={String(blockedCount)} color={blockedCount > 0 ? A.deny : P.t2} />
+            <Row label="Route lanes" value={String(flows.length)} />
+            <Row label="Projection lag" value={projectionLagSec == null ? 'Unavailable' : `${projectionLagSec}s`} color={projectionLagSec != null && projectionLagSec > 60 ? A.reroute : P.t1} />
+          </Block>
+          <Block title="SELECTED REGION">
+            <div style={{ fontSize: 14, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'No frame selected'}</div>
+            <div style={{ fontSize: 11, color: P.t2, marginTop: 6, lineHeight: 1.6 }}>
+              {selectedNode ? `Action ${selectedNode.action ?? 'n/a'} | reason ${selectedNode.reasonCode ?? 'n/a'}` : 'Choose a frame to lock the globe onto the routed region.'}
+            </div>
+          </Block>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Inspector({
+  f,
+  detail,
+  panel,
+  setPanel,
+  close,
+  mobile,
+  loading,
+}: {
+  f: HallOGridFrame
+  detail: HallOGridFrameDetail | null
+  panel: Panel
+  setPanel: (p: Panel) => void
+  close: () => void
+  mobile: boolean
+  loading: boolean
+}) {
+  const color = A[f.action]
+  const conf = f.metrics.signalConfidence
+  const confColor = confidenceColor(conf)
+  const trace = detail?.evidence.trace
+  const replay = detail?.evidence.replay
+  const proof = detail?.evidence.proof
+
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: `linear-gradient(180deg, ${P.bg1}fa 0%, ${P.bg0}fa 100%)`, backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
+      <div style={{ padding: mobile ? '16px 18px 14px' : '20px 24px 16px', position: 'sticky', top: 0, zIndex: 10, background: `linear-gradient(180deg, ${P.bg1}f5 0%, ${P.bg1}d0 100%)`, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderBottom: `1px solid ${P.border}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+          <div>
+            <div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.08em', marginBottom: 4 }}>{f.id} | {new Date(f.createdAt).toLocaleTimeString()}</div>
+            <div style={{ fontSize: 21, fontWeight: 700, color: P.t0, letterSpacing: '-0.02em' }}>{f.explanation.headline}</div>
+            <div style={{ fontSize: 12, color: P.t2, marginTop: 3 }}>{f.reasonLabel}</div>
+          </div>
+          <button type="button" onClick={close} style={{ background: hex('#ffffff', 0.05), border: `1px solid ${P.border}`, borderRadius: 8, color: P.t2, cursor: 'pointer', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
+          <div style={{ fontFamily: 'var(--m)', fontSize: 14, fontWeight: 700, letterSpacing: '0.1em', color, padding: '7px 20px', borderRadius: 999, background: `linear-gradient(135deg, ${hex(color, 0.18)} 0%, ${hex(color, 0.06)} 100%)`, border: `1px solid ${hex(color, 0.35)}`, boxShadow: `0 0 20px ${hex(color, 0.25)}, inset 0 1px 0 ${hex(color, 0.15)}` }}>
+            {ACTION_META[f.action].label.toUpperCase()}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 42, height: 42, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `radial-gradient(circle at 35% 35%, ${hex(confColor, 0.3)} 0%, ${hex(confColor, 0.08)} 100%)`, border: `2px solid ${hex(confColor, 0.5)}`, boxShadow: `0 0 18px ${hex(confColor, 0.25)}` }}>
+              <span style={{ fontFamily: 'var(--m)', fontSize: 14, fontWeight: 700, color: confColor }}>{confidenceGrade(conf)}</span>
+            </div>
+            <div>
+              <div style={{ fontFamily: 'var(--m)', fontSize: 24, fontWeight: 700, color: confColor, lineHeight: 1 }}>{conf != null ? conf.toFixed(1) : '--'}</div>
+              <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3, letterSpacing: '0.08em' }}>CONF | {f.trust.tier}</div>
+            </div>
+          </div>
+
+          <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+            <div style={{ fontFamily: 'var(--m)', fontSize: 18, fontWeight: 600, color: P.t1 }}>{f.metrics.totalLatencyMs != null ? f.metrics.totalLatencyMs.toFixed(0) : '--'}<span style={{ fontSize: 10, color: P.t3 }}>ms</span></div>
+            <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>LATENCY</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16 }}>
+          {TABS.map(([id, label, Icon]) => (
+            <button key={id} type="button" onClick={() => setPanel(id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, border: `1px solid ${panel === id ? hex(P.accent, 0.32) : P.border}`, background: panel === id ? hex(P.accent, 0.12) : hex('#ffffff', 0.04), color: panel === id ? '#dbeafe' : P.t1, fontFamily: 'var(--m)', fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              <Icon size={13} />
+              {label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="font-mono text-xs text-slate-300">
-            {selectedDecision?.decisionFrameId ?? 'No decision selected'}
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">
-            {selectedDecision?.selectedRegion ?? 'No region'}
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">
-            {selectedDecision ? resolveActionMeta(selectedDecision.action).label : 'Unavailable'}
-          </span>
-        </div>
-      </div>
-
-      {activePanel === 'trace' ? (
-        selectedTrace ? (
-          <div className="mt-4 space-y-5">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Ledger</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>Trace hash {selectedTrace.traceHash}</div>
-                <div>Input hash {selectedTrace.inputSignalHash}</div>
-                <div>Sequence {selectedTrace.sequenceNumber}</div>
-                <div>Created {selectedTrace.createdAt}</div>
-              </div>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Governance</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>Source {selectedTrace.payload.governance.source}</div>
-                <div>Strict {selectedTrace.payload.governance.strict ? 'yes' : 'no'}</div>
-                <div>
-                  Constraints {selectedTrace.payload.governance.constraintsApplied.join(', ') || 'none'}
-                </div>
-              </div>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Resolved candidates</div>
-              <div className="mt-3 space-y-2">
-                {selectedTrace.payload.normalizedSignals.candidates.map((candidate) => (
-                  <div
-                    key={candidate.region}
-                    className="rounded-[16px] border border-white/8 bg-slate-950/60 p-3 text-sm text-slate-200"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{candidate.region}</span>
-                      <span>{candidate.score.toFixed(3)}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-slate-400">
-                      water stress {candidate.waterStressIndex.toFixed(2)} / cache {candidate.cacheStatus}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+      <div style={{ padding: mobile ? '0 18px' : '0 24px' }}>
+        {loading ? (
+          <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: `linear-gradient(135deg, ${hex(P.accent, 0.08)} 0%, ${hex(P.accent, 0.03)} 100%)`, border: `1px solid ${hex(P.accent, 0.15)}`, fontSize: 11, color: '#dbeafe' }}>
+            Loading trace-backed detail...
           </div>
-        ) : (
-          <div className="mt-4 text-sm text-slate-300">Trace unavailable for the selected frame.</div>
-        )
-      ) : null}
+        ) : null}
 
-      {activePanel === 'replay' ? (
-        selectedReplay ? (
-          <div className="mt-4 space-y-5">
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Replay state</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>Deterministic match {selectedReplay.deterministicMatch ? 'yes' : 'no'}</div>
-                <div>Trace backed {selectedReplay.traceBacked ? 'yes' : 'no'}</div>
-                <div>Legacy {selectedReplay.legacy ? 'yes' : 'no'}</div>
-                <div>
-                  Mismatches {selectedReplay.mismatches.length ? selectedReplay.mismatches.join(', ') : 'none'}
-                </div>
-              </div>
-            </div>
-            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Stored vs replayed</div>
-              <div className="mt-3 grid gap-2 text-sm text-white">
-                <div>
-                  Action {selectedReplay.persisted?.decision ?? 'Unavailable'} / {selectedReplay.replay.decision}
-                </div>
-                <div>
-                  Region {selectedReplay.persisted?.selectedRegion ?? 'Unavailable'} / {selectedReplay.replay.selectedRegion}
-                </div>
-                <div>
-                  Reason {selectedReplay.persisted?.reasonCode ?? 'Unavailable'} / {selectedReplay.replay.reasonCode}
-                </div>
-                <div>
-                  Proof {shortHash(selectedReplay.persisted?.proofHash)} / {shortHash(selectedReplay.replay.proofHash)}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-4 text-sm text-slate-300">Replay unavailable for the selected frame.</div>
-        )
-      ) : null}
+        {panel === 'trace' ? (
+          <>
+            <Block title="DECISION CORE">
+              <Row label="Frame" value={f.id} />
+              <Row label="Region" value={f.region} />
+              <Row label="Workload class" value={f.workloadClass} />
+              <Row label="Action" value={ACTION_META[f.action].label} color={color} />
+              <Row label="Signal mode" value={f.runtime.signalMode ?? 'Unavailable'} />
+              <Row label="Accounting" value={f.runtime.accountingMethod ?? 'Unavailable'} />
+              <Row label="Water delta" value={liters(f.metrics.waterImpactDeltaLiters)} />
+            </Block>
+            <Block title="CONFIDENCE BREAKDOWN">
+              <Bar label="signal confidence" value={f.metrics.signalConfidence} />
+              <Bar label="carbon reduction" value={f.metrics.carbonReductionPct} />
+              <Bar label="replay readiness" value={f.replayState === 'verified' ? 100 : f.replayState === 'pending' ? 55 : 18} />
+              <Bar label="proof posture" value={f.proofState === 'available' ? 100 : 20} />
+            </Block>
+            <Block title="GOVERNANCE / TRACE">
+              <Row label="Governance source" value={trace?.governanceSource ?? f.governanceSource ?? 'Unavailable'} />
+              <Row label="Trace hash" value={shortHash(trace?.hash)} />
+              <Row label="Input hash" value={shortHash(trace?.inputHash)} />
+              <Row label="Sequence" value={trace?.sequenceNumber != null ? String(trace.sequenceNumber) : 'Unavailable'} />
+              <Row label="Constraints" value={trace?.constraintsApplied.length ? trace.constraintsApplied.join(', ') : 'none'} />
+            </Block>
+          </>
+        ) : null}
 
-      {activePanel === 'proof' ? (
-        <div className="mt-4 space-y-5">
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Proof reference</div>
-            <div className="mt-3 font-mono text-sm text-white">{activeProofHash ?? 'Unavailable'}</div>
-          </div>
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Provider snapshot refs</div>
-            <div className="mt-3 space-y-2 text-sm text-white">
-              {activeProviderRefs.length ? activeProviderRefs.map((ref) => <div key={ref}>{ref}</div>) : <div>Unavailable</div>}
-            </div>
-          </div>
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">Water evidence refs</div>
-            <div className="mt-3 space-y-2 text-sm text-white">
-              {activeEvidenceRefs.length ? activeEvidenceRefs.map((ref) => <div key={ref}>{ref}</div>) : <div>Unavailable</div>}
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </section>
-  )
-}
+        {panel === 'replay' ? (
+          <>
+            <Block title="REPLAY STATE">
+              <Row label="Deterministic match" value={replay?.deterministicMatch == null ? 'Unavailable' : replay.deterministicMatch ? 'YES' : 'NO'} color={replay?.deterministicMatch == null ? P.t1 : replay.deterministicMatch ? A.run_now : A.deny} />
+              <Row label="Trace backed" value={replay?.available ? (replay.traceBacked ? 'YES' : 'NO') : 'Unavailable'} />
+              <Row label="Selected action" value={replay?.selectedAction ?? 'Unavailable'} />
+              <Row label="Selected region" value={replay?.selectedRegion ?? 'Unavailable'} />
+              <Row label="Reason code" value={replay?.reasonCode ?? f.reasonCode} />
+            </Block>
+            <Block title="REPLAY NOTES">
+              {replay?.mismatches.length ? replay.mismatches.map((mismatch) => (
+                <div key={mismatch} style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: hex(A.deny, 0.08), border: `1px solid ${hex(A.deny, 0.16)}`, color: '#fecdd3', fontSize: 11 }}>
+                  {mismatch}
+                </div>
+              )) : <div style={{ fontSize: 11, color: P.t2, lineHeight: 1.7 }}>{f.trust.replayability}</div>}
+            </Block>
+          </>
+        ) : null}
 
-function TraceEventStream({
-  items,
-  selectedFrameId,
-  activePanel,
-  onSelect,
-  onInspect,
-  onReplay,
-  onProof,
-}: {
-  items: TraceEventItem[]
-  selectedFrameId: string | null
-  activePanel: InspectorPanelMode
-  onSelect: (decisionFrameId: string) => void
-  onInspect: (decisionFrameId: string) => void
-  onReplay: (decisionFrameId: string) => void
-  onProof: (decisionFrameId: string) => void
-}) {
-  return (
-    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,10,24,0.96),rgba(3,9,20,0.92))] p-5">
-      <div className="flex items-center gap-3">
-        <GitBranch className="h-5 w-5 text-cyan-300" />
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Trace event stream</div>
-          <div className="mt-1 text-lg font-semibold text-white">Decision frames with proof and replay state.</div>
-        </div>
+        {panel === 'proof' ? (
+          <>
+            <Block title="TRACE ENVELOPE">
+              <Row label="Proof hash" value={shortHash(proof?.hash, 24)} />
+              <Row label="Not before" value={proof?.notBefore ?? 'Immediate'} />
+              <Row label="Trace state" value={f.traceState} />
+              <Row label="Proof state" value={f.proofState} color={f.proofState === 'available' ? A.run_now : A.reroute} />
+            </Block>
+            <Block title="EVIDENCE REFS">
+              {proof?.providerSnapshotRefs.length ? proof.providerSnapshotRefs.slice(0, 3).map((ref) => (
+                <div key={ref} style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: hex(P.accent, 0.06), border: `1px solid ${hex(P.accent, 0.14)}`, color: P.t1, fontFamily: 'var(--m)', fontSize: 10, overflowWrap: 'anywhere' }}>
+                  {ref}
+                </div>
+              )) : null}
+              {proof?.evidenceRefs.length ? proof.evidenceRefs.slice(0, 3).map((ref) => (
+                <div key={ref} style={{ marginTop: 8, padding: '10px 12px', borderRadius: 8, background: hex(A.run_now, 0.06), border: `1px solid ${hex(A.run_now, 0.14)}`, color: P.t1, fontFamily: 'var(--m)', fontSize: 10, overflowWrap: 'anywhere' }}>
+                  {ref}
+                </div>
+              )) : null}
+              {!proof?.providerSnapshotRefs.length && !proof?.evidenceRefs.length ? (
+                <div style={{ fontSize: 11, color: P.t3, fontStyle: 'italic' }}>No linked evidence refs returned.</div>
+              ) : null}
+            </Block>
+          </>
+        ) : null}
+
+        <div style={{ height: 60 }} />
       </div>
-
-      <div className="mt-4 space-y-3">
-        {items.map((item) => {
-          const selected = item.decisionFrameId === selectedFrameId
-          const actionMeta = resolveActionMeta(item.action)
-          return (
-            <div
-              key={item.decisionFrameId}
-              className={clsx(
-                'rounded-[20px] border p-4 transition',
-                selected ? 'border-cyan-300/28 bg-cyan-300/7' : 'border-white/10 bg-white/[0.03]'
-              )}
-            >
-              <button type="button" className="w-full text-left" onClick={() => onSelect(item.decisionFrameId)}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-mono text-xs text-slate-300">{item.decisionFrameId}</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className={clsx('rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em]', actionMeta.badge, actionMeta.border)}>
-                        {actionMeta.label}
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">
-                        {item.region}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right text-xs text-slate-400">{formatAgo(item.createdAt)}</div>
-                </div>
-              </button>
-
-              <div className="mt-3 grid gap-2 text-xs text-slate-300">
-                <div>Reason {item.reasonCode}</div>
-                <div>Governance {item.governanceSource ?? 'Unavailable'}</div>
-                <div>
-                  Proof {item.proofAvailable ? 'available' : 'unavailable'} / Trace {item.traceAvailable ? 'locked' : 'unavailable'} / Replay {item.replayVerified == null ? 'on inspect' : item.replayVerified ? 'verified' : 'mismatch'}
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={clsx(
-                    'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white',
-                    activePanel === 'trace' && selected
-                      ? 'border-cyan-300/30 bg-cyan-300/10'
-                      : 'border-white/10 bg-white/[0.04]'
-                  )}
-                  onClick={() => onInspect(item.decisionFrameId)}
-                >
-                  Trace
-                </button>
-                <button
-                  type="button"
-                  className={clsx(
-                    'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white',
-                    activePanel === 'replay' && selected
-                      ? 'border-cyan-300/30 bg-cyan-300/10'
-                      : 'border-white/10 bg-white/[0.04]'
-                  )}
-                  onClick={() => onReplay(item.decisionFrameId)}
-                >
-                  Replay
-                </button>
-                <button
-                  type="button"
-                  className={clsx(
-                    'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white',
-                    activePanel === 'proof' && selected
-                      ? 'border-cyan-300/30 bg-cyan-300/10'
-                      : 'border-white/10 bg-white/[0.04]'
-                  )}
-                  onClick={() => onProof(item.decisionFrameId)}
-                >
-                  Proof
-                </button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function RecentDecisionQueue({
-  items,
-  selectedFrameId,
-  onSelect,
-}: {
-  items: CommandCenterDecisionItem[]
-  selectedFrameId: string | null
-  onSelect: (decisionFrameId: string) => void
-}) {
-  return (
-    <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,10,24,0.96),rgba(3,9,20,0.92))] p-5">
-      <div className="flex items-center gap-3">
-        <Globe2 className="h-5 w-5 text-lime-300" />
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Recent decision queue</div>
-          <div className="mt-1 text-lg font-semibold text-white">Binding execution outcomes.</div>
-        </div>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        {items.map((item) => {
-          const actionMeta = resolveActionMeta(item.action)
-          return (
-            <button
-              key={item.decisionFrameId}
-              type="button"
-              onClick={() => onSelect(item.decisionFrameId)}
-              className={clsx(
-                'flex w-full items-center justify-between gap-3 rounded-[18px] border px-4 py-3 text-left transition',
-                item.decisionFrameId === selectedFrameId ? 'border-cyan-300/28 bg-cyan-300/7' : 'border-white/10 bg-white/[0.03]'
-              )}
-            >
-              <div className="min-w-0">
-                <div className={clsx('text-sm font-semibold', actionMeta.text)}>{actionMeta.label}</div>
-                <div className="mt-1 truncate text-xs text-slate-400">{item.selectedRegion} • {item.reasonCode}</div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
-            </button>
-          )
-        })}
-      </div>
-    </section>
+    </div>
   )
 }
 
 export function CommandCenterShell() {
-  const snapshotQuery = useCommandCenterSnapshot()
+  const snapshotQuery = useHallOGridSnapshot()
   const snapshot = snapshotQuery.data
-  const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null)
-  const [activePanel, setActivePanel] = useState<InspectorPanelMode>('trace')
+
+  const [sel, setSel] = useState<string | null>(null)
+  const [seededSelection, setSeededSelection] = useState(false)
+  const [mobile, setMobile] = useState(false)
+  const [panel, setPanel] = useState<Panel>('trace')
 
   useEffect(() => {
-    if (!snapshot) return
-    const exists = snapshot.decisionCore.recentDecisions.some((decision) => decision.decisionFrameId === selectedFrameId)
-    if (!selectedFrameId || !exists) {
-      setSelectedFrameId(snapshot.selectedDecisionFrameId)
-    }
-  }, [selectedFrameId, snapshot])
+    const onResize = () => setMobile(window.innerWidth < 960)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
-  const isLatestSelected = Boolean(snapshot?.selectedDecisionFrameId && selectedFrameId === snapshot.selectedDecisionFrameId)
+  useEffect(() => {
+    if (!snapshot || seededSelection) return
+    const initial = snapshot.selectedFrameId ?? snapshot.frames[0]?.id ?? null
+    if (initial) setSel(initial)
+    setSeededSelection(true)
+  }, [seededSelection, snapshot])
 
-  const selectedTraceQuery = useDecisionTrace(selectedFrameId, {
-    enabled: Boolean(selectedFrameId) && !isLatestSelected,
-    refetchInterval: false,
-  })
-  const selectedReplayQuery = useReplayBundle(selectedFrameId, {
-    enabled: Boolean(selectedFrameId) && !isLatestSelected,
-    refetchInterval: false,
-  })
+  useEffect(() => {
+    if (!snapshot || !sel) return
+    if (!snapshot.frames.some((frame) => frame.id === sel)) setSel(null)
+  }, [sel, snapshot])
 
-  const selectedDecision = useMemo(() => {
-    if (!snapshot || !selectedFrameId) return null
-    return snapshot.decisionCore.recentDecisions.find((decision) => decision.decisionFrameId === selectedFrameId) ?? null
-  }, [selectedFrameId, snapshot])
+  const frame = useMemo(() => {
+    if (!snapshot || !sel) return null
+    return snapshot.frames.find((item) => item.id === sel) ?? null
+  }, [snapshot, sel])
 
-  const selectedTrace =
-    isLatestSelected ? snapshot?.decisionCore.selectedTrace ?? null : selectedTraceQuery.data ?? null
-  const selectedReplay =
-    isLatestSelected
-      ? snapshot?.decisionCore.selectedReplay ?? null
-      : ((selectedReplayQuery.data as LiveSystemReplayResponse | null) ?? null)
-
-  const governance = useMemo(() => {
-    if (!snapshot) return null
-    return deriveGovernance(snapshot, selectedTrace, selectedReplay)
-  }, [selectedReplay, selectedTrace, snapshot])
-
-  const worldModel = useMemo(() => {
-    if (!snapshot) return null
-    return deriveWorldModel(snapshot.decisionCore.recentDecisions, selectedTrace, selectedReplay)
-  }, [selectedReplay, selectedTrace, snapshot])
-
-  const traceItems = useMemo(() => {
-    if (!snapshot) return []
-    return deriveTraceItems(snapshot.decisionCore.recentDecisions, selectedFrameId, selectedReplay)
-  }, [selectedFrameId, selectedReplay, snapshot])
+  const isPrimary = Boolean(snapshot?.selectedFrameId && sel === snapshot.selectedFrameId)
+  const detailQuery = useHallOGridFrame(sel, { enabled: Boolean(sel) && !isPrimary, refetchInterval: false })
+  const detail = isPrimary ? snapshot?.selectedFrame ?? null : detailQuery.data ?? null
 
   if (snapshotQuery.isLoading) {
-    return (
-      <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-8 text-sm text-slate-300">
-        Loading command center...
-      </div>
-    )
+    return <div className="rounded-[28px] border border-white/10 bg-white/[0.04] px-6 py-8 text-sm text-slate-300">Loading HallOGrid...</div>
   }
 
-  if (snapshotQuery.error || !snapshot || !governance || !worldModel) {
-    return (
-      <div className="rounded-[32px] border border-rose-400/20 bg-rose-400/10 p-8 text-sm text-rose-200">
-        {snapshotQuery.error instanceof Error ? snapshotQuery.error.message : 'Failed to load the command center'}
-      </div>
-    )
+  if (snapshotQuery.error || !snapshot) {
+    return <div className="rounded-[28px] border border-rose-400/20 bg-rose-400/10 px-6 py-8 text-sm text-rose-100">{snapshotQuery.error instanceof Error ? snapshotQuery.error.message : 'Failed to load HallOGrid.'}</div>
   }
 
-  const activeProofHash = selectedTrace?.payload.proof.proofHash ?? selectedDecision?.proofHash ?? null
-  const activeEvidenceRefs = selectedTrace?.payload.proof.evidenceRefs ?? []
-  const activeProviderRefs = selectedTrace?.payload.proof.providerSnapshotRefs ?? []
+  const activeColor = frame ? A[frame.action] : P.accent
 
   return (
-    <div className="space-y-5">
-      <GlobalCommandHeader snapshot={snapshot} selectedTrace={selectedTrace} selectedReplay={selectedReplay} />
-      <CommandCenterTruthRail
-        selectedDecision={selectedDecision}
-        selectedTrace={selectedTrace}
-        selectedReplay={selectedReplay}
-      />
-      <ProjectionFreshnessBanner projection={snapshot.projection} />
+    <div style={{ background: P.bg0, color: P.t1, minHeight: '100vh', fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif", position: 'relative', overflow: 'hidden' }}>
+      <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');:root{--m:'JetBrains Mono',monospace;}@keyframes hallogrid-breathe{0%,100%{transform:translate(0,0) scale(1);opacity:.5;}50%{transform:translate(-2%,1.5%) scale(1.04);opacity:.75;}}@keyframes hallogrid-pulse{0%,100%{opacity:.35;transform:scale(1);}50%{opacity:0;transform:scale(2.5);}}@keyframes hallogrid-pulse-soft{0%,100%{opacity:1;}50%{opacity:.65;}}@keyframes hallogrid-beacon-fast{0%,100%{opacity:.15;transform:scale(.85);}50%{opacity:1;transform:scale(1.2);}}@keyframes hallogrid-beacon-slow{0%,100%{opacity:.2;transform:scale(.9);}50%{opacity:.75;transform:scale(1.08);}}@keyframes hallogrid-inspector-in{from{opacity:0;transform:translateX(28px);}to{opacity:1;transform:translateX(0);}}@keyframes hallogrid-sheet-up{from{transform:translateY(100%);}to{transform:translateY(0);}}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${P.borderLit};border-radius:2px;}button{font-family:inherit;}button:focus-visible{outline:2px solid ${P.accent};outline-offset:2px;}`}</style>
+      <BackgroundGrid active={Boolean(sel)} color={activeColor} />
+      <HeaderBar title={snapshot.title} subtitle={snapshot.subtitle} streamHealthy={snapshot.transport.streamHealthy} generatedAt={snapshot.generatedAt} />
+      <TelemetryStrip frames={snapshot.frames} />
 
-      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="space-y-5">
-          <RecentDecisionQueue
-            items={snapshot.decisionCore.recentDecisions}
-            selectedFrameId={selectedFrameId}
-            onSelect={setSelectedFrameId}
-          />
-          <TraceEventStream
-            items={traceItems}
-            selectedFrameId={selectedFrameId}
-            activePanel={activePanel}
-            onSelect={setSelectedFrameId}
-            onInspect={(decisionFrameId) => {
-              setSelectedFrameId(decisionFrameId)
-              setActivePanel('trace')
-            }}
-            onReplay={(decisionFrameId) => {
-              setSelectedFrameId(decisionFrameId)
-              setActivePanel('replay')
-            }}
-            onProof={(decisionFrameId) => {
-              setSelectedFrameId(decisionFrameId)
-              setActivePanel('proof')
-            }}
-          />
-        </div>
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: SCENE_TOP, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, transformStyle: 'preserve-3d' }}>
+            <GlobePanel nodes={snapshot.world.nodes} flows={snapshot.world.flows} selectedRegion={frame?.region ?? null} projectionLagSec={snapshot.projection.projectionLagSec} streamHealthy={snapshot.transport.streamHealthy} expanded={!mobile && !sel} />
 
-        <div className="space-y-5">
-          <WorldExecutionGrid model={worldModel} selectedFrameId={selectedFrameId} onSelectFrame={setSelectedFrameId} />
-          <DecisionEngineCore
-            selectedDecision={selectedDecision}
-            selectedTrace={selectedTrace}
-            selectedReplay={selectedReplay}
-            governance={governance}
-          />
-          <PersistentInspectorPanel
-            activePanel={activePanel}
-            onSelectPanel={setActivePanel}
-            selectedDecision={selectedDecision}
-            selectedTrace={selectedTrace}
-            selectedReplay={selectedReplay}
-            activeProofHash={activeProofHash}
-            activeEvidenceRefs={activeEvidenceRefs}
-            activeProviderRefs={activeProviderRefs}
-          />
-          <div className="grid gap-5 2xl:grid-cols-[320px_minmax(0,1fr)]">
-            <SaiqGovernanceEngine governance={governance} />
-            <SystemHealthPanel providers={snapshot.health.providers} snapshot={snapshot.health} />
+            <div style={{ padding: '0 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${P.border}`, paddingBottom: 12 }}>
+              <div>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.12em' }}>DECISION FEED</div>
+                <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>Select a frame. The governed record opens instantly with trace, replay, and proof.</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3 }}>{snapshot.frames.length} FRAMES</span>
+                <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: A.run_now, letterSpacing: '0.1em', fontWeight: 700 }}>LIVE</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {snapshot.frames.map((item) => (
+                <FeedCard key={item.id} f={item} active={sel === item.id} anyActive={Boolean(sel)} onTap={(id) => setSel((current) => { const next = current === id ? null : id; if (next) setPanel('trace'); return next })} />
+              ))}
+            </div>
           </div>
+
+          {!mobile && frame ? (
+            <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, borderTop: `1px solid ${P.border}`, boxShadow: `0 -12px 40px ${hex('#000000', 0.35)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
+              <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={() => setSel(null)} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
+            </div>
+          ) : !mobile ? (
+            <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2 }}>
+              <div>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 11, letterSpacing: '0.12em', color: '#dbeafe' }}>SELECT A FRAME</div>
+                <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7 }}>The governed record will lock on the right with direct trace, replay, and proof sections.</div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {mobile && frame ? (
+        <div onClick={(event) => { if (event.target === event.currentTarget) setSel(null) }} style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div style={{ borderRadius: '18px 18px 0 0', maxHeight: '90vh', overflow: 'hidden', animation: 'hallogrid-sheet-up 0.3s cubic-bezier(0.16,1,0.3,1)', boxShadow: `0 -12px 50px ${hex('#000000', 0.6)}` }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 6px', background: `${P.bg1}f8` }}><div style={{ width: 40, height: 4, borderRadius: 2, background: P.borderLit }} /></div>
+            <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={() => setSel(null)} mobile loading={Boolean(frame) && !detail && detailQuery.isLoading} />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

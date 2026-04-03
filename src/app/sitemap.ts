@@ -12,8 +12,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes = coreSitePaths.map((path) => ({
     url: path === '/' ? siteUrl : `${siteUrl}${path}`,
     lastModified: now,
-    changeFrequency: path === '/' || path === '/blog' ? 'weekly' : 'monthly',
-    priority: path === '/' ? 1 : path === '/console' || path === '/methodology' ? 0.9 : 0.7,
+    changeFrequency:
+      path === '/' || path === '/console' || path === '/developers/api' || path === '/developers/adapters'
+        ? 'weekly'
+        : path === '/blog'
+          ? 'weekly'
+          : 'monthly',
+    priority:
+      path === '/'
+        ? 1
+        : path === '/console'
+          ? 0.95
+          : path === '/developers/api' || path === '/developers/adapters' || path === '/methodology'
+            ? 0.9
+            : 0.7,
   })) satisfies MetadataRoute.Sitemap
 
   const postRoutes = posts.map((post) => ({

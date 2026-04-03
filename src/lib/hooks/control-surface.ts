@@ -1,12 +1,16 @@
 'use client'
 
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type {
   CiRouteResponse,
   CommandCenterSnapshot,
   ControlSurfaceOverview,
   DecisionTraceRawRecord,
+  HallOGridFrameDetail,
+  HallOGridSnapshot,
+  HallOGridStreamEvent,
   LiveSystemSnapshot,
   ReplayBundle,
   SimulationMode,
@@ -48,6 +52,60 @@ export function useCommandCenterSnapshot() {
     queryFn: () => getJson<CommandCenterSnapshot>('/api/control-surface/command-center'),
     staleTime: 15_000,
     refetchInterval: 15_000,
+  })
+}
+
+export function useHallOGridSnapshot() {
+  const queryClient = useQueryClient()
+  const query = useQuery<HallOGridSnapshot>({
+    queryKey: ['hallogrid-snapshot'],
+    queryFn: () => getJson<HallOGridSnapshot>('/api/control-surface/hallogrid'),
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+  })
+
+  useEffect(() => {
+    const source = new EventSource('/api/control-surface/hallogrid/stream')
+
+    const handleSnapshot = (event: MessageEvent<string>) => {
+      try {
+        const payload = JSON.parse(event.data) as HallOGridStreamEvent
+        if (payload.type === 'snapshot') {
+          queryClient.setQueryData(['hallogrid-snapshot'], payload.snapshot)
+        }
+      } catch {
+        queryClient.invalidateQueries({ queryKey: ['hallogrid-snapshot'] })
+      }
+    }
+
+    const handleError = () => {
+      queryClient.invalidateQueries({ queryKey: ['hallogrid-snapshot'] })
+    }
+
+    source.addEventListener('snapshot', handleSnapshot as EventListener)
+    source.addEventListener('error', handleError)
+
+    return () => {
+      source.removeEventListener('snapshot', handleSnapshot as EventListener)
+      source.removeEventListener('error', handleError)
+      source.close()
+    }
+  }, [queryClient])
+
+  return query
+}
+
+export function useHallOGridFrame(
+  decisionFrameId: string | null,
+  options?: { enabled?: boolean; refetchInterval?: number | false }
+) {
+  return useQuery<HallOGridFrameDetail>({
+    queryKey: ['hallogrid-frame', decisionFrameId],
+    queryFn: () =>
+      getJson<HallOGridFrameDetail>(`/api/control-surface/hallogrid/frame/${decisionFrameId}`),
+    enabled: Boolean(decisionFrameId) && (options?.enabled ?? true),
+    staleTime: REFRESH_INTERVAL_MS,
+    refetchInterval: options?.refetchInterval,
   })
 }
 
