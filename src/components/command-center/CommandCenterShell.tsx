@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ACTION_META } from '@/components/control-surface/action-styles'
 import { useHallOGridFrame, useHallOGridSnapshot } from '@/lib/hooks/control-surface'
 import type {
+  ControlSurfaceProviderNode,
   HallOGridFrame,
   HallOGridFrameDetail,
   WorldRegionState,
@@ -101,6 +102,12 @@ function confidenceColor(value: number | null | undefined) {
   if (value == null) return P.t2
   if (value >= 85) return A.run_now
   if (value >= 68) return A.reroute
+  return A.deny
+}
+
+function providerStatusColor(status: ControlSurfaceProviderNode['status']) {
+  if (status === 'healthy') return A.run_now
+  if (status === 'degraded') return A.reroute
   return A.deny
 }
 
@@ -409,6 +416,7 @@ type ProjectedNode = {
 function GlobePanel({
   nodes,
   flows,
+  providers,
   selectedRegion,
   selectedFrame,
   projectionLagSec,
@@ -418,6 +426,7 @@ function GlobePanel({
 }: {
   nodes: WorldRegionState[]
   flows: WorldRoutingFlow[]
+  providers: ControlSurfaceProviderNode[]
   selectedRegion: string | null
   selectedFrame: HallOGridFrame | null
   projectionLagSec: number | null
@@ -529,6 +538,19 @@ function GlobePanel({
     .filter((item) => item.depth >= 0.02)
     .sort((a, b) => b.depth - a.depth)
   const frontLineNodes = actionableNodes.slice(0, 5)
+  const providerMesh = providers.slice(0, 6).map((provider, index, list) => {
+    const angle = (-110 + (220 / Math.max(list.length - 1, 1)) * index) * (Math.PI / 180)
+    const orbitX = center + Math.cos(angle) * (radius + 54)
+    const orbitY = center + Math.sin(angle) * (radius * 0.76 + 44)
+    return {
+      provider,
+      x: orbitX,
+      y: orbitY,
+      color: providerStatusColor(provider.status),
+    }
+  })
+  const healthyProviders = providers.filter((provider) => provider.status === 'healthy').length
+  const degradedProviders = providers.filter((provider) => provider.status === 'degraded').length
 
   return (
     <div style={{ padding: '18px 18px 16px', borderRadius: 24, background: `linear-gradient(180deg, ${hex('#0a1220', 0.22)} 0%, ${hex('#07101a', 0.12)} 18%, ${hex('#020309', 0.94)} 66%, ${hex('#000000', 0.98)} 100%)`, border: `1px solid ${hex(P.accent, 0.12)}`, boxShadow: `0 24px 60px ${hex('#000000', 0.36)}` }}>
@@ -687,6 +709,45 @@ function GlobePanel({
               </button>
             )
           })}
+          {providerMesh.map(({ provider, x, y, color }) => (
+            <div
+              key={provider.id}
+              style={{
+                position: 'absolute',
+                left: x,
+                top: y,
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 8px',
+                borderRadius: 999,
+                background: hex('#000000', 0.44),
+                border: `1px solid ${hex(color, 0.28)}`,
+                boxShadow: `0 0 16px ${hex(color, 0.08)}`,
+                pointerEvents: 'none',
+                zIndex: 220,
+              }}
+              title={`${provider.label}: ${provider.status}`}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '999px',
+                  background: color,
+                  boxShadow: `0 0 12px ${hex(color, 0.48)}`,
+                  animation:
+                    reducedMotion || provider.status !== 'healthy'
+                      ? 'none'
+                      : 'hallogrid-beacon-fast 1.8s ease-in-out infinite',
+                }}
+              />
+              <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t1, letterSpacing: '0.04em' }}>
+                {provider.label}
+              </span>
+            </div>
+          ))}
           <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
             <span>{selectedNode ? `FOCUS ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}</span>
             {selectedState ? <span style={{ color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
@@ -779,6 +840,8 @@ function GlobePanel({
             <Row label="Active nodes" value={String(activeCount)} color={A.run_now} />
             <Row label="Guarded nodes" value={String(marginalCount)} color={A.reroute} />
             <Row label="Blocked nodes" value={String(blockedCount)} color={blockedCount > 0 ? A.deny : P.t2} />
+            <Row label="Healthy providers" value={String(healthyProviders)} color={A.run_now} />
+            <Row label="Degraded providers" value={String(degradedProviders)} color={degradedProviders > 0 ? A.reroute : P.t2} />
             <Row label="Visible route lanes" value={String(flowPaths.length)} color={selectedRegion ? '#dbeafe' : P.t1} />
             <Row label="Blocked focus lanes" value={String(blockedFocusFlowCount)} color={blockedFocusFlowCount > 0 ? A.deny : P.t2} />
             <Row label="Projection lag" value={projectionLagSec == null ? 'Unavailable' : `${projectionLagSec}s`} color={projectionLagSec != null && projectionLagSec > 60 ? A.reroute : P.t1} />
@@ -1068,6 +1131,7 @@ export function CommandCenterShell() {
           <GlobePanel
             nodes={snapshot.world.nodes}
             flows={snapshot.world.flows}
+            providers={snapshot.health.providers}
             selectedRegion={focusedRegion ?? frame?.region ?? null}
             selectedFrame={frame}
             projectionLagSec={snapshot.projection.projectionLagSec}
