@@ -463,6 +463,7 @@ function GlobePanel({
   projectionLagSec,
   streamHealthy,
   expanded,
+  mobile = false,
   onSelectRegion,
 }: {
   nodes: WorldRegionState[]
@@ -473,6 +474,7 @@ function GlobePanel({
   projectionLagSec: number | null
   streamHealthy: boolean
   expanded: boolean
+  mobile?: boolean
   onSelectRegion: (node: WorldRegionState) => void
 }) {
   const [rotation, setRotation] = useState(0)
@@ -642,8 +644,8 @@ function GlobePanel({
       </div>
 
       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ position: 'relative', minHeight: expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
-          <div style={{ position: 'absolute', inset: expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
+        <div style={{ position: 'relative', minHeight: mobile ? 320 : expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
+          <div style={{ position: 'absolute', inset: mobile ? 14 : expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
           <svg viewBox={`0 0 ${globeSize} ${globeSize}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
             <defs>
               <filter id="hallogrid-flow-glow">
@@ -755,8 +757,8 @@ function GlobePanel({
                   left: item.screenX,
                   top: item.screenY,
                   transform: 'translate(-50%, -50%)',
-                  width: 34,
-                  height: 34,
+                  width: mobile ? 42 : 34,
+                  height: mobile ? 42 : 34,
                   borderRadius: '999px',
                   border: isSelected ? `1px solid ${hex('#dbeafe', 0.62)}` : `1px solid ${hex(stateMeta.color, 0.24)}`,
                   background: isSelected ? hex('#dbeafe', 0.08) : 'transparent',
@@ -824,7 +826,7 @@ function GlobePanel({
               ) : null}
             </div>
           ))}
-          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '52%' }}>
+          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: mobile ? '68%' : '52%' }}>
             {([
               ['RUN', activeCount, A.run_now],
               ['GUARDED', marginalCount, A.reroute],
@@ -837,7 +839,8 @@ function GlobePanel({
               </div>
             ))}
           </div>
-          <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+          {!mobile ? (
+            <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
             <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>
               {selectedNode ? 'REGION LOCK' : 'TAP A REGION'}
             </div>
@@ -874,7 +877,8 @@ function GlobePanel({
                 </div>
               </div>
             </div>
-          </div>
+            </div>
+          ) : null}
           <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
             <span>{selectedNode ? `FOCUS ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}</span>
             {selectedState ? <span style={{ color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
@@ -886,7 +890,21 @@ function GlobePanel({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: expanded ? 'minmax(0, 1.3fr) minmax(0, 0.7fr)' : '1fr', gap: 10 }}>
+          {mobile ? (
+            <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.24) : P.border}` }}>
+              <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>
+                {selectedNode ? 'REGION LOCK' : 'TAP A REGION'}
+              </div>
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'Tap a glowing region'}</span>
+                {selectedState ? <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: P.t1, lineHeight: 1.55 }}>
+                {selectedNode ? selectedDecisionRead : 'Tap a green, amber, or red beacon on the globe to lock the region and open its governed record.'}
+              </div>
+            </div>
+          ) : null}
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : expanded ? 'minmax(0, 1.3fr) minmax(0, 0.7fr)' : '1fr', gap: 10 }}>
             <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {frontLineNodes.map((item) => {
@@ -1039,8 +1057,9 @@ function HallOGridTheater({
   projectionLagSec,
   streamHealthy,
   expanded,
+  mobile,
   onSelectRegion,
-}: ComponentProps<typeof GlobePanel>) {
+}: ComponentProps<typeof GlobePanel> & { mobile: boolean }) {
   const [rotation, setRotation] = useState(0)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
@@ -1057,13 +1076,13 @@ function HallOGridTheater({
   useEffect(() => {
     if (typeof window === 'undefined' || reducedMotion) return
     const interval = window.setInterval(() => {
-      setRotation((current) => (current + (selectedRegion ? 0.12 : expanded ? 0.16 : 0.1)) % 360)
+      setRotation((current) => (current + (mobile ? (selectedRegion ? 0.06 : 0.08) : selectedRegion ? 0.12 : expanded ? 0.16 : 0.1)) % 360)
     }, 80)
     return () => window.clearInterval(interval)
-  }, [expanded, reducedMotion, selectedRegion])
+  }, [expanded, mobile, reducedMotion, selectedRegion])
 
-  const globeSize = expanded ? 660 : 520
-  const radius = expanded ? 244 : 192
+  const globeSize = mobile ? 420 : expanded ? 660 : 520
+  const radius = mobile ? 152 : expanded ? 244 : 192
   const center = globeSize / 2
   const glowRadius = radius + (expanded ? 8 : 6)
 
@@ -1644,7 +1663,7 @@ export function CommandCenterShell() {
       <TelemetryStrip frames={snapshot.frames} />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: SCENE_TOP, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch', width: '100%', maxWidth: mobile ? '100%' : 1440, margin: '0 auto' }}>
           <HallOGridTheater
             nodes={snapshot.world.nodes}
             flows={snapshot.world.flows}
@@ -1654,13 +1673,14 @@ export function CommandCenterShell() {
             projectionLagSec={snapshot.projection.projectionLagSec}
             streamHealthy={snapshot.transport.streamHealthy}
             expanded={!mobile && !sel}
+            mobile={mobile}
             onSelectRegion={selectRegion}
           />
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: mobile ? '1fr' : 'minmax(0, 1.05fr) minmax(0, 0.95fr)',
+              gridTemplateColumns: mobile ? '1fr' : 'minmax(0, 0.96fr) minmax(360px, 0.84fr)',
               gap: 16,
               alignItems: 'start',
             }}
