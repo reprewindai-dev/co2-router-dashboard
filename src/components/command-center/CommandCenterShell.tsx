@@ -1627,7 +1627,7 @@ function HallOGridTheater({
             </div>
           </div>
 
-          <div style={{ display: mobile ? 'none' : 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+          <div style={{ display: 'none', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
             <div style={{ minWidth: 0, flex: '1 1 420px' }}>
               <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>OPERATOR READ</div>
               <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.6 }}>
@@ -1907,7 +1907,7 @@ export function CommandCenterShell() {
       <TelemetryStrip frames={snapshot.frames} mobile={mobile} />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: 12, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch', width: '100%', maxWidth: mobile ? '100%' : 1440, margin: '0 auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch', width: '100%', maxWidth: mobile ? '100%' : 1320, margin: '0 auto' }}>
           <HallOGridTheater
             nodes={snapshot.world.nodes}
             flows={snapshot.world.flows}
@@ -1924,8 +1924,8 @@ export function CommandCenterShell() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: mobile ? '1fr' : 'minmax(0, 0.96fr) minmax(360px, 0.84fr)',
-              gap: 16,
+              gridTemplateColumns: mobile ? '1fr' : 'minmax(0, 0.9fr) minmax(420px, 0.86fr)',
+              gap: mobile ? 16 : 18,
               alignItems: 'start',
             }}
           >
@@ -1933,7 +1933,7 @@ export function CommandCenterShell() {
               <div style={{ padding: '0 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${P.border}`, paddingBottom: 12 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.12em' }}>DECISION FEED</div>
-                  <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>Select a frame. The governed record opens instantly with trace, replay, and proof.</div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>Lock a governed record. Trace, replay, and proof open on the right.</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3 }}>{snapshot.frames.length} FRAMES</span>
@@ -1949,7 +1949,7 @@ export function CommandCenterShell() {
             </div>
 
             {!mobile && frame ? (
-              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, borderLeft: `1px solid ${P.border}`, boxShadow: `-12px 0 40px ${hex('#000000', 0.35)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
+              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, borderLeft: `1px solid ${P.border}`, boxShadow: `-10px 0 28px ${hex('#000000', 0.26)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
                 <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={clearSelection} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
               </div>
             ) : !mobile ? (
