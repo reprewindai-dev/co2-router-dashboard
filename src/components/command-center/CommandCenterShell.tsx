@@ -16,9 +16,22 @@ import type {
 
 type Panel = 'trace' | 'replay' | 'proof'
 
-const HEADER_HEIGHT = 58
-const STRIP_HEIGHT = 34
-const SCENE_TOP = HEADER_HEIGHT + STRIP_HEIGHT + 12
+const DESKTOP_HEADER_HEIGHT = 58
+const DESKTOP_STRIP_HEIGHT = 34
+const MOBILE_HEADER_HEIGHT = 48
+const MOBILE_STRIP_HEIGHT = 30
+
+function shellHeaderHeight(mobile: boolean) {
+  return mobile ? MOBILE_HEADER_HEIGHT : DESKTOP_HEADER_HEIGHT
+}
+
+function shellStripHeight(mobile: boolean) {
+  return mobile ? MOBILE_STRIP_HEIGHT : DESKTOP_STRIP_HEIGHT
+}
+
+function shellSceneTop(mobile: boolean) {
+  return shellHeaderHeight(mobile) + shellStripHeight(mobile) + 12
+}
 
 const P = {
   bg0: '#050608',
@@ -209,22 +222,24 @@ function HeaderBar({
   subtitle,
   streamHealthy,
   generatedAt,
+  mobile,
 }: {
   title: string
   subtitle: string
   streamHealthy: boolean
   generatedAt: string
+  mobile: boolean
 }) {
+  const headerHeight = shellHeaderHeight(mobile)
+
   return (
     <div
       style={{
-        position: 'fixed',
+        position: 'sticky',
         top: 0,
-        left: 0,
-        right: 0,
         zIndex: 120,
-        height: HEADER_HEIGHT,
-        padding: '0 20px',
+        height: headerHeight,
+        padding: mobile ? '0 12px' : '0 20px',
         background: `linear-gradient(180deg, ${P.bg1}f2 0%, ${P.bg1}cf 100%)`,
         backdropFilter: 'blur(18px)',
         WebkitBackdropFilter: 'blur(18px)',
@@ -233,9 +248,11 @@ function HeaderBar({
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 16,
+        marginLeft: mobile ? -12 : 0,
+        marginRight: mobile ? -12 : 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 10 : 12, minWidth: 0 }}>
         <div style={{ position: 'relative' }}>
           <div style={{ width: 8, height: 8, borderRadius: '999px', background: A.run_now }} />
           <div
@@ -249,30 +266,32 @@ function HeaderBar({
           />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--m)', fontSize: 11, letterSpacing: '0.12em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--m)', fontSize: mobile ? 10 : 11, letterSpacing: '0.12em', flexWrap: mobile ? 'wrap' : 'nowrap' }}>
             <span style={{ color: P.t0, fontWeight: 700 }}>CO2 ROUTER</span>
             <span style={{ padding: '3px 9px', borderRadius: 999, border: `1px solid ${hex(P.accent, 0.28)}`, background: hex(P.accent, 0.08), color: '#dbeafe' }}>CONSOLE</span>
-            <span style={{ color: P.accent }}>HALLOGRID</span>
+            {!mobile ? <span style={{ color: P.accent }}>HALLOGRID</span> : null}
           </div>
-          <div style={{ color: P.t2, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div style={{ color: P.t1, fontSize: mobile ? 11 : 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {title} | {subtitle}
           </div>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 8 : 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.24) : hex(A.reroute, 0.28)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
           <Radar size={12} />
           {streamHealthy ? 'LIVE MIRROR' : 'FALLBACK PATH'}
         </div>
-        <div style={{ color: P.t2, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.06em' }}>
-          REFRESHED {ago(generatedAt)}
-        </div>
+        {!mobile ? (
+          <div style={{ color: P.t2, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.06em' }}>
+            REFRESHED {ago(generatedAt)}
+          </div>
+        ) : null}
       </div>
     </div>
   )
 }
 
-function TelemetryStrip({ frames }: { frames: HallOGridFrame[] }) {
+function TelemetryStrip({ frames, mobile }: { frames: HallOGridFrame[]; mobile: boolean }) {
   const s = useMemo(() => {
     const counts = { run_now: 0, deny: 0, reroute: 0, delay: 0, throttle: 0 }
     let lat = 0
@@ -301,27 +320,30 @@ function TelemetryStrip({ frames }: { frames: HallOGridFrame[] }) {
     { key: 'throttle', label: 'THROTTLE', value: s.throttle, color: A.throttle, pulse: false },
   ] as const
 
+  const stripHeight = shellStripHeight(mobile)
+  const top = shellHeaderHeight(mobile)
+
   return (
     <div
       style={{
-        position: 'fixed',
-        top: HEADER_HEIGHT,
-        left: 0,
-        right: 0,
+        position: 'sticky',
+        top,
         zIndex: 118,
-        height: STRIP_HEIGHT,
-        padding: '0 20px',
+        height: stripHeight,
+        padding: mobile ? '0 12px' : '0 20px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 16,
+        gap: mobile ? 10 : 16,
         borderBottom: `1px solid ${P.border}`,
         background: `linear-gradient(180deg, ${P.bg2}ed 0%, ${P.bg1}cf 100%)`,
         backdropFilter: 'blur(18px)',
         WebkitBackdropFilter: 'blur(18px)',
+        marginLeft: mobile ? -12 : 0,
+        marginRight: mobile ? -12 : 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, overflowX: 'auto', scrollbarWidth: 'none', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 12 : 16, overflowX: 'auto', scrollbarWidth: 'none', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.1em', whiteSpace: 'nowrap', minWidth: 0 }}>
         {items.map((item) => {
           const active = item.value > 0
           return (
@@ -332,12 +354,14 @@ function TelemetryStrip({ frames }: { frames: HallOGridFrame[] }) {
           )
         })}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0, color: P.t2, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
-        <span style={{ color: '#dbeafe' }}>{s.latency != null ? `${s.latency}MS` : 'LAT N/A'}</span>
-        <span style={{ color: confidenceColor(s.confidence), fontWeight: 700 }}>
-          CONF {s.confidence != null ? s.confidence.toFixed(1) : '--'}
-        </span>
-      </div>
+      {!mobile ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0, color: P.t2, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+          <span style={{ color: '#dbeafe' }}>{s.latency != null ? `${s.latency}MS` : 'LAT N/A'}</span>
+          <span style={{ color: confidenceColor(s.confidence), fontWeight: 700 }}>
+            CONF {s.confidence != null ? s.confidence.toFixed(1) : '--'}
+          </span>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -1063,6 +1087,7 @@ function HallOGridTheater({
   const [rotation, setRotation] = useState(0)
   const [reducedMotion, setReducedMotion] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
+  const [showMobileGuide, setShowMobileGuide] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1081,8 +1106,8 @@ function HallOGridTheater({
     return () => window.clearInterval(interval)
   }, [expanded, mobile, reducedMotion, selectedRegion])
 
-  const globeSize = mobile ? 420 : expanded ? 660 : 520
-  const radius = mobile ? 152 : expanded ? 244 : 192
+  const globeSize = mobile ? 470 : expanded ? 660 : 520
+  const radius = mobile ? 176 : expanded ? 244 : 192
   const center = globeSize / 2
   const glowRadius = radius + (expanded ? 8 : 6)
 
@@ -1196,20 +1221,20 @@ function HallOGridTheater({
   return (
     <div
       style={{
-        padding: '18px 18px 16px',
+        padding: mobile ? '14px 14px 14px' : '18px 18px 16px',
         borderRadius: 24,
         background: `linear-gradient(180deg, ${hex('#0a1220', 0.22)} 0%, ${hex('#07101a', 0.12)} 18%, ${hex('#020309', 0.94)} 66%, ${hex('#000000', 0.98)} 100%)`,
         border: `1px solid ${hex(P.accent, 0.12)}`,
         boxShadow: `0 24px 60px ${hex('#000000', 0.36)}`,
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: mobile ? 'flex-start' : 'center', gap: 12, flexWrap: mobile ? 'wrap' : 'nowrap' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.12em', color: '#dbeafe' }}>
             <Globe2 size={13} />
             LIVE GRID THEATER
           </div>
-          <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>
+          <div style={{ marginTop: 6, fontSize: mobile ? 12 : 13, color: P.t1, maxWidth: mobile ? '100%' : 720 }}>
             Regions are the execution surface. Pulse, ring, and lane weight show where to run, where to hold, and how trustworthy the posture is.
           </div>
         </div>
@@ -1219,8 +1244,8 @@ function HallOGridTheater({
       </div>
 
       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ position: 'relative', minHeight: expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
-          <div style={{ position: 'absolute', inset: expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
+        <div style={{ position: 'relative', minHeight: mobile ? 392 : expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
+          <div style={{ position: 'absolute', inset: mobile ? 8 : expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
           <svg viewBox={`0 0 ${globeSize} ${globeSize}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
             <defs>
               <filter id="hallogrid-flow-glow-next">
@@ -1302,7 +1327,7 @@ function HallOGridTheater({
               {selectedNode ? <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t1, letterSpacing: '0.04em' }}>{provider.label}</span> : null}
             </div>
           ))}
-          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '52%' }}>
+          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: mobile ? '76%' : '52%' }}>
             {([
               ['RUN', activeCount, A.run_now],
               ['GUARDED', guardedCount, A.reroute],
@@ -1315,7 +1340,8 @@ function HallOGridTheater({
               </div>
             ))}
           </div>
-          <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+          {!mobile ? (
+            <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
             <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>{selectedNode ? 'REGION LOCK' : 'TAP A REGION'}</div>
             <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 18, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'Execution zones'}</span>
@@ -1342,19 +1368,58 @@ function HallOGridTheater({
                 <div style={{ marginTop: 4, fontSize: 11, color: blockedFocusFlowCount > 0 ? A.deny : '#dbeafe' }}>{selectedNode ? `${connectedFlows.length} active / ${blockedFocusFlowCount} blocked` : `${flowPaths.length} visible`}</div>
               </div>
             </div>
-          </div>
+            </div>
+          ) : null}
           <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
             <span>{selectedNode ? `FOCUS ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}</span>
             {selectedState ? <span style={{ color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
           </div>
-          <div style={{ position: 'absolute', right: 16, bottom: 14, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: '#dbeafe' }}>
+          <div style={{ position: 'absolute', right: 16, bottom: 14, display: mobile ? 'none' : 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: '#dbeafe' }}>
             <span>{reducedMotion ? 'LOW MOTION' : 'LIVE ROTATION'}</span>
             <span style={{ color: P.t2 }}>{Math.round(rotation)}deg</span>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: expanded ? 'minmax(0, 1.3fr) minmax(0, 0.7fr)' : '1fr', gap: 10 }}>
+          {mobile ? (
+            <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.24) : P.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>
+                  {selectedNode ? 'REGION LOCK' : 'TAP A REGION'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileGuide((current) => !current)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: `1px solid ${P.borderLit}`,
+                    background: showMobileGuide ? hex(P.accent, 0.1) : hex('#ffffff', 0.03),
+                    color: showMobileGuide ? '#dbeafe' : P.t1,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--m)',
+                    fontSize: 10,
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {showMobileGuide ? 'MINIMIZE' : 'EXPAND'}
+                </button>
+              </div>
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 16, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'Tap a glowing region'}</span>
+                {selectedState ? <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
+              </div>
+              {showMobileGuide ? (
+                <div style={{ marginTop: 6, fontSize: 11, color: P.t1, lineHeight: 1.55 }}>
+                  {selectedNode ? selectedDecisionRead : 'Tap a green, amber, or red beacon on the globe to lock the region and open its governed record.'}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : expanded ? 'minmax(0, 1.3fr) minmax(0, 0.7fr)' : '1fr', gap: 10 }}>
             <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {frontLineNodes.map((item) => {
@@ -1654,15 +1719,16 @@ export function CommandCenterShell() {
   }
 
   const activeColor = frame ? A[frame.action] : P.accent
+  const sceneTop = shellSceneTop(mobile)
 
   return (
     <div style={{ background: P.bg0, color: P.t1, minHeight: '100vh', fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif", position: 'relative', overflow: 'hidden' }}>
       <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');:root{--m:'JetBrains Mono',monospace;}@keyframes hallogrid-breathe{0%,100%{transform:translate(0,0) scale(1);opacity:.5;}50%{transform:translate(-2%,1.5%) scale(1.04);opacity:.75;}}@keyframes hallogrid-pulse{0%,100%{opacity:.35;transform:scale(1);}50%{opacity:0;transform:scale(2.5);}}@keyframes hallogrid-pulse-soft{0%,100%{opacity:1;}50%{opacity:.65;}}@keyframes hallogrid-beacon-fast{0%,100%{opacity:.15;transform:scale(.85);}50%{opacity:1;transform:scale(1.2);}}@keyframes hallogrid-beacon-slow{0%,100%{opacity:.2;transform:scale(.9);}50%{opacity:.75;transform:scale(1.08);}}@keyframes hallogrid-beacon-irregular{0%,20%,60%,100%{opacity:.18;transform:scale(.88);}10%,32%,74%{opacity:.95;transform:scale(1.12);}45%{opacity:.38;transform:scale(.96);}}@keyframes hallogrid-inspector-in{from{opacity:0;transform:translateX(28px);}to{opacity:1;transform:translateX(0);}}@keyframes hallogrid-sheet-up{from{transform:translateY(100%);}to{transform:translateY(0);}}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${P.borderLit};border-radius:2px;}button{font-family:inherit;}button:focus-visible{outline:2px solid ${P.accent};outline-offset:2px;}`}</style>
       <BackgroundGrid active={Boolean(sel)} color={activeColor} />
-      <HeaderBar title={snapshot.title} subtitle={snapshot.subtitle} streamHealthy={snapshot.transport.streamHealthy} generatedAt={snapshot.generatedAt} />
-      <TelemetryStrip frames={snapshot.frames} />
+      <HeaderBar title={snapshot.title} subtitle={snapshot.subtitle} streamHealthy={snapshot.transport.streamHealthy} generatedAt={snapshot.generatedAt} mobile={mobile} />
+      <TelemetryStrip frames={snapshot.frames} mobile={mobile} />
 
-      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: SCENE_TOP, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: 12, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch', width: '100%', maxWidth: mobile ? '100%' : 1440, margin: '0 auto' }}>
           <HallOGridTheater
             nodes={snapshot.world.nodes}
@@ -1685,7 +1751,7 @@ export function CommandCenterShell() {
               alignItems: 'start',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, transformStyle: 'preserve-3d' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: `calc(100vh - ${sceneTop + 18}px)`, transformStyle: 'preserve-3d' }}>
               <div style={{ padding: '0 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${P.border}`, paddingBottom: 12 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.12em' }}>DECISION FEED</div>
@@ -1705,11 +1771,11 @@ export function CommandCenterShell() {
             </div>
 
             {!mobile && frame ? (
-              <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, position: 'sticky', top: SCENE_TOP, borderLeft: `1px solid ${P.border}`, boxShadow: `-12px 0 40px ${hex('#000000', 0.35)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
+              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, borderLeft: `1px solid ${P.border}`, boxShadow: `-12px 0 40px ${hex('#000000', 0.35)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
                 <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={clearSelection} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
               </div>
             ) : !mobile ? (
-              <div style={{ minHeight: `calc(100vh - ${SCENE_TOP + 18}px)`, position: 'sticky', top: SCENE_TOP, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2 }}>
+              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--m)', fontSize: 11, letterSpacing: '0.12em', color: '#dbeafe' }}>SELECT A FRAME</div>
                   <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7 }}>The governed record will lock on the right with direct trace, replay, and proof sections.</div>
