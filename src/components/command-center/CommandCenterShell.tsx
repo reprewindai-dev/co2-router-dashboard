@@ -620,7 +620,14 @@ function GlobePanel({
   const healthyProviders = providers.filter((provider) => provider.status === 'healthy').length
   const degradedProviders = providers.filter((provider) => provider.status === 'degraded').length
   const offlineProviders = Math.max(0, providers.length - healthyProviders - degradedProviders)
-  const providerNodes = selectedNode ? providerMesh : providerMesh.slice(0, Math.min(providerMesh.length, 2))
+  const providerNodes = mobile
+    ? selectedNode
+      ? providerMesh.slice(0, Math.min(providerMesh.length, 3))
+      : []
+    : selectedNode
+      ? providerMesh
+      : providerMesh.slice(0, Math.min(providerMesh.length, 2))
+  const regionRailNodes = mobile ? nodes : frontLineNodes.map((item) => item.node)
   const selectedDecisionRead = compactDecisionRead(selectedFrame)
   const selectedFreshness = selectedFrame ? shortFreshness(selectedFrame.trust.freshnessLabel) : 'Awaiting focus'
   const selectedConfidence = selectedFrame?.metrics.signalConfidence ?? selectedNode?.signalConfidence ?? null
@@ -970,7 +977,7 @@ function GlobePanel({
               ))}
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+          <div style={{ display: mobile ? 'none' : 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
             <div style={{ minWidth: 0, flex: '1 1 420px' }}>
               <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>OPERATOR READ</div>
               <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.6 }}>
@@ -1179,6 +1186,7 @@ function HallOGridTheater({
   const blockedFocusFlowCount = connectedFlows.filter((flow) => flow.mode === 'blocked').length
   const actionableNodes = projected.filter((item) => item.depth >= 0.02).sort((a, b) => b.depth - a.depth)
   const frontLineNodes = actionableNodes.slice(0, 5)
+  const regionRailNodes = mobile ? nodes : frontLineNodes.map((item) => item.node)
   const providerMesh = providers.slice(0, 6).map((provider, index, list) => {
     const angle = (-110 + (220 / Math.max(list.length - 1, 1)) * index) * (Math.PI / 180)
     const orbitX = center + Math.cos(angle) * (radius + 54)
@@ -1244,6 +1252,93 @@ function HallOGridTheater({
       </div>
 
       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {mobile ? (
+          <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.24) : P.border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>OPERATOR READ</div>
+                <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.55 }}>
+                  {selectedNode
+                    ? `${selectedNode.label} ${selectedState?.label.toLowerCase() ?? 'live'} | ${selectedConfidenceLabel.toLowerCase()} confidence | ${selectedFreshness.toLowerCase()}`
+                    : 'Tap a green, amber, or red region beacon to lock the zone and open its governed record.'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowMobileGuide((current) => !current)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: `1px solid ${P.borderLit}`,
+                    background: showMobileGuide ? hex(P.accent, 0.1) : hex('#ffffff', 0.03),
+                    color: showMobileGuide ? '#dbeafe' : P.t1,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--m)',
+                    fontSize: 10,
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {showMobileGuide ? 'HIDE GUIDE' : 'SHOW GUIDE'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLegend((current) => !current)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: `1px solid ${P.borderLit}`,
+                    background: showLegend ? hex(P.accent, 0.1) : hex('#ffffff', 0.03),
+                    color: showLegend ? '#dbeafe' : P.t1,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--m)',
+                    fontSize: 10,
+                    letterSpacing: '0.08em',
+                  }}
+                >
+                  {showLegend ? 'HIDE LEGEND' : 'SHOW LEGEND'}
+                </button>
+              </div>
+            </div>
+            {showMobileGuide ? (
+              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                <div style={{ padding: '9px 10px', borderRadius: 12, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>REGION LOCK</div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedNode ? selectedNode.label : 'Tap a glowing region'}</div>
+                </div>
+                <div style={{ padding: '9px 10px', borderRadius: 12, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>POSTURE</div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: selectedState?.color ?? '#dbeafe' }}>
+                    {selectedState ? selectedState.label.toUpperCase() : 'READY TO SELECT'}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {showLegend ? (
+              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                {(['active', 'marginal', 'blocked'] as const).map((state) => {
+                  const meta = WORLD_STATE_META[state]
+                  return (
+                    <div key={state} style={{ padding: '10px 12px', borderRadius: 12, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 9, height: 9, borderRadius: '999px', background: meta.color, boxShadow: `0 0 12px ${hex(meta.color, 0.48)}` }} />
+                        <div style={{ fontSize: 11, color: P.t1 }}>{meta.label}</div>
+                        <div style={{ marginLeft: 'auto', fontFamily: 'var(--m)', fontSize: 9, color: meta.color }}>{meta.rhythm}</div>
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 10, color: P.t2, lineHeight: 1.55 }}>{meta.detail}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <div style={{ position: 'relative', minHeight: mobile ? 392 : expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
           <div style={{ position: 'absolute', inset: mobile ? 8 : expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
           <svg viewBox={`0 0 ${globeSize} ${globeSize}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
@@ -1381,59 +1476,21 @@ function HallOGridTheater({
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {mobile ? (
-            <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.24) : P.border}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>
-                  {selectedNode ? 'REGION LOCK' : 'TAP A REGION'}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowMobileGuide((current) => !current)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '6px 10px',
-                    borderRadius: 999,
-                    border: `1px solid ${P.borderLit}`,
-                    background: showMobileGuide ? hex(P.accent, 0.1) : hex('#ffffff', 0.03),
-                    color: showMobileGuide ? '#dbeafe' : P.t1,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--m)',
-                    fontSize: 10,
-                    letterSpacing: '0.08em',
-                  }}
-                >
-                  {showMobileGuide ? 'MINIMIZE' : 'EXPAND'}
-                </button>
-              </div>
-              <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'Tap a glowing region'}</span>
-                {selectedState ? <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
-              </div>
-              {showMobileGuide ? (
-                <div style={{ marginTop: 6, fontSize: 11, color: P.t1, lineHeight: 1.55 }}>
-                  {selectedNode ? selectedDecisionRead : 'Tap a green, amber, or red beacon on the globe to lock the region and open its governed record.'}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
           <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : expanded ? 'minmax(0, 1.3fr) minmax(0, 0.7fr)' : '1fr', gap: 10 }}>
             <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {frontLineNodes.map((item) => {
-                  const meta = WORLD_STATE_META[item.node.state]
-                  const isSelected = item.node.region === selectedRegion
+                {regionRailNodes.map((node) => {
+                  const meta = WORLD_STATE_META[node.state]
+                  const isSelected = node.region === selectedRegion
                   return (
                     <button
-                      key={item.node.region}
+                      key={node.region}
                       type="button"
-                      onClick={() => onSelectRegion(item.node)}
+                      onClick={() => onSelectRegion(node)}
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderRadius: 999, border: `1px solid ${hex(meta.color, isSelected ? 0.44 : 0.22)}`, background: isSelected ? hex(meta.color, 0.12) : hex('#ffffff', 0.02), color: P.t1, cursor: 'pointer', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.06em' }}
                     >
                       <span style={{ width: 7, height: 7, borderRadius: '999px', background: meta.color, boxShadow: `0 0 10px ${hex(meta.color, 0.45)}` }} />
-                      {item.node.label}
+                      {node.label}
                     </button>
                   )
                 })}
@@ -1463,7 +1520,7 @@ function HallOGridTheater({
             </button>
           </div>
 
-          {showLegend ? (
+          {!mobile && showLegend ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
               {(['active', 'marginal', 'blocked'] as const).map((state) => {
                 const meta = WORLD_STATE_META[state]
