@@ -480,6 +480,50 @@ type ProjectedNode = {
   color: string
 }
 
+function spreadProjectedNodes(items: ProjectedNode[], center: number, radius: number, minDistance: number): ProjectedNode[] {
+  if (items.length <= 1) return items
+
+  const next = items.map((item) => ({ ...item }))
+  const limit = radius * 0.86
+
+  for (let pass = 0; pass < 8; pass += 1) {
+    for (let i = 0; i < next.length; i += 1) {
+      for (let j = i + 1; j < next.length; j += 1) {
+        const a = next[i]
+        const b = next[j]
+        const dx = b.screenX - a.screenX
+        const dy = b.screenY - a.screenY
+        const distance = Math.hypot(dx, dy) || 0.001
+
+        if (distance >= minDistance) continue
+
+        const overlap = (minDistance - distance) / 2
+        const ux = dx / distance
+        const uy = dy / distance
+
+        a.screenX -= ux * overlap
+        a.screenY -= uy * overlap
+        b.screenX += ux * overlap
+        b.screenY += uy * overlap
+      }
+    }
+
+    for (const item of next) {
+      const offsetX = item.screenX - center
+      const offsetY = item.screenY - center
+      const distance = Math.hypot(offsetX, offsetY) || 0.001
+
+      if (distance > limit) {
+        const scale = limit / distance
+        item.screenX = center + offsetX * scale
+        item.screenY = center + offsetY * scale
+      }
+    }
+  }
+
+  return next
+}
+
 function GlobePanel({
   nodes,
   flows,
@@ -1143,7 +1187,7 @@ function HallOGridTheater({
       })
       .sort((a, b) => a.depth - b.depth)
 
-    if (!mobile || raw.length <= 1) return raw
+    if (raw.length <= 1) return raw
 
     const xs = raw.map((item) => item.screenX)
     const ys = raw.map((item) => item.screenY)
@@ -1153,18 +1197,22 @@ function HallOGridTheater({
     const maxY = Math.max(...ys)
     const spanX = Math.max(maxX - minX, 1)
     const spanY = Math.max(maxY - minY, 1)
-    const targetMinX = center - radius * 0.66
-    const targetMaxX = center + radius * 0.66
-    const targetMinY = center - radius * 0.52
-    const targetMaxY = center + radius * 0.52
+    const spreadX = mobile ? 0.78 : 0.72
+    const spreadY = mobile ? 0.64 : 0.58
+    const targetMinX = center - radius * spreadX
+    const targetMaxX = center + radius * spreadX
+    const targetMinY = center - radius * spreadY
+    const targetMaxY = center + radius * spreadY
 
-    return raw.map((item) => ({
+    const normalized = raw.map((item) => ({
       ...item,
       screenX:
         targetMinX + ((item.screenX - minX) / spanX) * (targetMaxX - targetMinX),
       screenY:
         targetMinY + ((item.screenY - minY) / spanY) * (targetMaxY - targetMinY),
     }))
+
+    return spreadProjectedNodes(normalized, center, radius, mobile ? 58 : 38)
   }, [center, mobile, nodes, radius, rotation])
 
   const visibleByRegion = useMemo(() => new Map(projected.map((item) => [item.node.region, item])), [projected])
@@ -1819,7 +1867,7 @@ export function CommandCenterShell() {
       <TelemetryStrip frames={snapshot.frames} mobile={mobile} />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: 12, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch', width: '100%', maxWidth: mobile ? '100%' : 1320, margin: '0 auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch', width: '100%', maxWidth: mobile ? '100%' : 1180, margin: '0 auto' }}>
           <HallOGridTheater
             nodes={snapshot.world.nodes}
             flows={snapshot.world.flows}
@@ -1836,12 +1884,12 @@ export function CommandCenterShell() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: mobile ? '1fr' : 'minmax(0, 0.9fr) minmax(420px, 0.86fr)',
+              gridTemplateColumns: mobile ? '1fr' : 'minmax(0, 0.98fr) minmax(400px, 0.92fr)',
               gap: mobile ? 16 : 18,
               alignItems: 'start',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: `calc(100vh - ${sceneTop + 18}px)`, transformStyle: 'preserve-3d' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minHeight: `calc(100vh - ${sceneTop + 18}px)`, transformStyle: 'preserve-3d', minWidth: 0 }}>
               <div style={{ padding: '0 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${P.border}`, paddingBottom: 12 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t3, letterSpacing: '0.12em' }}>DECISION FEED</div>
@@ -1861,11 +1909,11 @@ export function CommandCenterShell() {
             </div>
 
             {!mobile && frame ? (
-              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, borderLeft: `1px solid ${P.border}`, boxShadow: `-10px 0 28px ${hex('#000000', 0.26)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24 }}>
+              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, borderLeft: `1px solid ${P.border}`, boxShadow: `-6px 0 22px ${hex('#000000', 0.18)}`, animation: 'hallogrid-inspector-in 0.35s cubic-bezier(0.16,1,0.3,1)', overflow: 'hidden', borderRadius: 24, minWidth: 0 }}>
                 <Inspector f={frame} detail={detail} panel={panel} setPanel={setPanel} close={clearSelection} mobile={false} loading={Boolean(frame) && !detail && detailQuery.isLoading} />
               </div>
             ) : !mobile ? (
-              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2 }}>
+              <div style={{ minHeight: `calc(100vh - ${sceneTop + 18}px)`, position: 'sticky', top: sceneTop, padding: '24px', borderRadius: 24, border: `1px solid ${P.border}`, background: `linear-gradient(180deg, ${P.glass2} 0%, ${P.glass} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: P.t2, minWidth: 0 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--m)', fontSize: 11, letterSpacing: '0.12em', color: '#dbeafe' }}>SELECT A FRAME</div>
                   <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.7 }}>The governed record will lock on the right with direct trace, replay, and proof sections.</div>
