@@ -1242,9 +1242,11 @@ function HallOGridTheater({
             <Globe2 size={13} />
             LIVE GRID THEATER
           </div>
-          <div style={{ marginTop: 6, fontSize: mobile ? 12 : 13, color: P.t1, maxWidth: mobile ? '100%' : 720 }}>
-            Regions are the execution surface. Pulse, ring, and lane weight show where to run, where to hold, and how trustworthy the posture is.
-          </div>
+          {!mobile ? (
+            <div style={{ marginTop: 6, fontSize: 13, color: P.t1, maxWidth: 720 }}>
+              Regions are the execution surface. Pulse, ring, and lane weight show where to run, where to hold, and how trustworthy the posture is.
+            </div>
+          ) : null}
         </div>
         <div style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.2) : hex(A.reroute, 0.24)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
           {streamHealthy ? 'STREAM HEALTHY' : 'STREAM GUARDED'}
@@ -1389,7 +1391,41 @@ function HallOGridTheater({
           {actionableNodes.map((item) => {
             const stateMeta = WORLD_STATE_META[item.node.state]
             const isSelected = item.node.region === selectedRegion
-            return (
+            return mobile ? (
+              <div
+                key={item.node.region}
+                style={{
+                  position: 'absolute',
+                  left: item.screenX,
+                  top: item.screenY,
+                  transform: 'translate(-50%, -50%)',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '999px',
+                  border: isSelected ? `1px solid ${hex('#dbeafe', 0.62)}` : `1px solid ${hex(stateMeta.color, 0.24)}`,
+                  background: isSelected ? hex('#dbeafe', 0.08) : 'transparent',
+                  boxShadow: isSelected ? `0 0 18px ${hex('#dbeafe', 0.16)}` : 'none',
+                  zIndex: Math.round((item.depth + 1) * 100),
+                  opacity: selectedRegion && !isSelected ? 0.55 : 1,
+                  pointerEvents: 'none',
+                }}
+                aria-hidden="true"
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    width: 10,
+                    height: 10,
+                    margin: '0 auto',
+                    marginTop: 11,
+                    borderRadius: '999px',
+                    background: stateMeta.color,
+                    boxShadow: `0 0 18px ${hex(stateMeta.color, 0.55)}`,
+                    animation: regionPulse(item.node, reducedMotion),
+                  }}
+                />
+              </div>
+            ) : (
               <button
                 key={item.node.region}
                 type="button"
@@ -1506,7 +1542,7 @@ function HallOGridTheater({
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+          <div style={{ display: mobile ? 'none' : 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
             <div style={{ minWidth: 0, flex: '1 1 420px' }}>
               <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>OPERATOR READ</div>
               <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.6 }}>
