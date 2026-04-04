@@ -371,11 +371,13 @@ function FeedCard({
   active,
   anyActive,
   onTap,
+  priority,
 }: {
   f: HallOGridFrame
   active: boolean
   anyActive: boolean
   onTap: (id: string) => void
+  priority: boolean
 }) {
   const c = A[f.action]
   const meta = ACTION_META[f.action]
@@ -396,16 +398,16 @@ function FeedCard({
         background: active ? `linear-gradient(145deg, ${hex(c, 0.14)} 0%, ${P.glass2} 100%)` : P.glass,
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        border: `1px solid ${active ? hex(c, 0.5) : P.border}`,
+        border: `1px solid ${active ? hex(c, 0.42) : priority ? hex(c, 0.18) : P.border}`,
         borderRadius: 14,
-        boxShadow: active ? `0 0 30px ${hex(c, 0.2)}, 0 8px 32px rgba(0,0,0,0.52), inset 0 1px 0 ${hex(c, 0.15)}` : '0 4px 20px rgba(0,0,0,0.4)',
-        transform: active ? 'scale(1.02) translateZ(40px)' : anyActive ? 'scale(0.98)' : 'scale(1)',
-        opacity: anyActive && !active ? 0.44 : 1,
+        boxShadow: active ? `0 0 18px ${hex(c, 0.16)}, 0 10px 28px rgba(0,0,0,0.48), inset 0 1px 0 ${hex(c, 0.12)}` : priority ? `0 4px 16px ${hex(c, 0.08)}` : '0 4px 16px rgba(0,0,0,0.34)',
+        transform: active ? 'scale(1.018) translateZ(34px)' : anyActive ? 'scale(0.985)' : priority ? 'scale(1.004)' : 'scale(1)',
+        opacity: anyActive && !active ? 0.56 : priority || active ? 1 : 0.86,
         transition: 'all 0.35s cubic-bezier(0.16,1,0.3,1)',
       }}
       aria-expanded={active}
     >
-      <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 999, background: c, boxShadow: active ? `0 0 16px ${hex(c, 0.7)}` : `0 0 8px ${hex(c, 0.4)}` }} />
+      <div style={{ position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: 999, background: c, boxShadow: active ? `0 0 10px ${hex(c, 0.55)}` : priority ? `0 0 6px ${hex(c, 0.24)}` : 'none' }} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 10, marginBottom: 10 }}>
         <span style={{ fontFamily: 'var(--m)', fontSize: 10, color: P.t2, letterSpacing: '0.05em' }}>{f.id}</span>
         <div style={{ fontFamily: 'var(--m)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: c, padding: '3px 12px', borderRadius: 999, background: hex(c, 0.12), border: `1px solid ${hex(c, 0.25)}` }}>{meta.label.toUpperCase()}</div>
@@ -977,7 +979,7 @@ function GlobePanel({
               ))}
             </div>
           </div>
-          <div style={{ display: mobile ? 'none' : 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+          <div style={{ display: 'none', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
             <div style={{ minWidth: 0, flex: '1 1 420px' }}>
               <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>OPERATOR READ</div>
               <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.6 }}>
@@ -1095,6 +1097,7 @@ function HallOGridTheater({
   const [reducedMotion, setReducedMotion] = useState(false)
   const [showLegend, setShowLegend] = useState(false)
   const [showMobileGuide, setShowMobileGuide] = useState(false)
+  const [showDesktopGuide, setShowDesktopGuide] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -1219,7 +1222,7 @@ function HallOGridTheater({
   const healthyProviders = providers.filter((provider) => provider.status === 'healthy').length
   const degradedProviders = providers.filter((provider) => provider.status === 'degraded').length
   const offlineProviders = Math.max(0, providers.length - healthyProviders - degradedProviders)
-  const providerNodes = selectedNode ? providerMesh : providerMesh.slice(0, Math.min(providerMesh.length, 2))
+  const providerNodes = mobile ? [] : selectedNode ? providerMesh.slice(0, Math.min(providerMesh.length, 4)) : []
   const selectedDecisionRead = compactDecisionRead(selectedFrame)
   const selectedFreshness = selectedFrame ? shortFreshness(selectedFrame.trust.freshnessLabel) : 'Awaiting focus'
   const selectedConfidence = selectedFrame?.metrics.signalConfidence ?? selectedNode?.signalConfidence ?? null
@@ -1236,6 +1239,9 @@ function HallOGridTheater({
   const selectedPressure = selectedNode?.pressureLevel ?? null
   const selectedRoutePressureLabel =
     selectedPressure != null ? `${selectedPressure.toUpperCase()} PRESSURE` : 'NO PRESSURE READ'
+  const selectedStatusRead = selectedNode
+    ? `${selectedNode.label} ${selectedState?.label.toLowerCase() ?? 'live'} | ${selectedConfidenceLabel.toLowerCase()} confidence | ${selectedFreshness.toLowerCase()}`
+    : 'Select a region to inspect execution posture.'
   const supportTelemetry = [
     { label: 'Routes', value: String(flowPaths.length), color: '#dbeafe' },
     { label: 'Blocked', value: String(blockedFocusFlowCount), color: blockedFocusFlowCount > 0 ? A.deny : P.t2 },
@@ -1265,14 +1271,29 @@ function HallOGridTheater({
             <Globe2 size={13} />
             LIVE GRID THEATER
           </div>
-          {!mobile ? (
-            <div style={{ marginTop: 6, fontSize: 13, color: P.t1, maxWidth: 720 }}>
-              Regions are the execution surface. Pulse, ring, and lane weight show where to run, where to hold, and how trustworthy the posture is.
-            </div>
-          ) : null}
         </div>
-        <div style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.2) : hex(A.reroute, 0.24)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
-          {streamHealthy ? 'STREAM HEALTHY' : 'STREAM GUARDED'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: mobile ? 'flex-start' : 'flex-end' }}>
+          <div style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.18) : hex(A.reroute, 0.2)}`, background: streamHealthy ? hex(A.run_now, 0.06) : hex(A.reroute, 0.08), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+            {streamHealthy ? 'STREAM HEALTHY' : 'STREAM GUARDED'}
+          </div>
+          {!mobile ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowDesktopGuide((current) => !current)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${P.borderLit}`, background: showDesktopGuide ? hex(P.accent, 0.1) : hex('#ffffff', 0.02), color: showDesktopGuide ? '#dbeafe' : P.t1, cursor: 'pointer', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}
+              >
+                {showDesktopGuide ? 'HIDE GUIDE' : 'GUIDE'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLegend((current) => !current)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 999, border: `1px solid ${P.borderLit}`, background: showLegend ? hex(P.accent, 0.1) : hex('#ffffff', 0.02), color: showLegend ? '#dbeafe' : P.t1, cursor: 'pointer', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}
+              >
+                {showLegend ? 'HIDE LEGEND' : 'LEGEND'}
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -1353,6 +1374,47 @@ function HallOGridTheater({
                     <div key={state} style={{ padding: '10px 12px', borderRadius: 12, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ width: 9, height: 9, borderRadius: '999px', background: meta.color, boxShadow: `0 0 12px ${hex(meta.color, 0.48)}` }} />
+                        <div style={{ fontSize: 11, color: P.t1 }}>{meta.label}</div>
+                        <div style={{ marginLeft: 'auto', fontFamily: 'var(--m)', fontSize: 9, color: meta.color }}>{meta.rhythm}</div>
+                      </div>
+                      <div style={{ marginTop: 6, fontSize: 10, color: P.t2, lineHeight: 1.55 }}>{meta.detail}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {!mobile && (showDesktopGuide || showLegend) ? (
+          <div style={{ display: 'grid', gridTemplateColumns: showDesktopGuide && showLegend ? 'minmax(0, 1.1fr) minmax(0, 0.9fr)' : '1fr', gap: 10 }}>
+            {showDesktopGuide ? (
+              <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.025), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>CONTROL GUIDE</div>
+                <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.6 }}>{selectedStatusRead}</div>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+                  <div style={{ padding: '8px 10px', borderRadius: 12, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+                    <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>REGION</div>
+                    <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedNode?.label ?? 'Select region'}</div>
+                  </div>
+                  <div style={{ padding: '8px 10px', borderRadius: 12, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+                    <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>POSTURE</div>
+                    <div style={{ marginTop: 4, fontSize: 11, color: selectedState?.color ?? '#dbeafe' }}>{selectedState?.label ?? 'Awaiting focus'}</div>
+                  </div>
+                  <div style={{ padding: '8px 10px', borderRadius: 12, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+                    <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>ROUTE</div>
+                    <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedRoutePressureLabel}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {showLegend ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                {(['active', 'marginal', 'blocked'] as const).map((state) => {
+                  const meta = WORLD_STATE_META[state]
+                  return (
+                    <div key={state} style={{ padding: '10px 12px', borderRadius: 12, background: hex('#ffffff', 0.025), border: `1px solid ${P.border}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 9, height: 9, borderRadius: '999px', background: meta.color, boxShadow: `0 0 10px ${hex(meta.color, 0.34)}` }} />
                         <div style={{ fontSize: 11, color: P.t1 }}>{meta.label}</div>
                         <div style={{ marginLeft: 'auto', fontFamily: 'var(--m)', fontSize: 9, color: meta.color }}>{meta.rhythm}</div>
                       </div>
@@ -1494,15 +1556,15 @@ function HallOGridTheater({
               </div>
             ))}
           </div>
-          {!mobile ? (
+          {!mobile && selectedNode ? (
             <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
-            <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>{selectedNode ? 'REGION LOCK' : 'TAP A REGION'}</div>
+            <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>REGION LOCK</div>
             <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'Execution zones'}</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: P.t0 }}>{selectedNode.label}</span>
               {selectedState ? <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
             </div>
             <div style={{ marginTop: 8, fontSize: 11, color: P.t1, lineHeight: 1.55 }}>
-              {selectedNode ? selectedDecisionRead : 'Click a beacon to lock the region, sync the feed, and surface routed pressure, trust, and proof posture.'}
+              {selectedDecisionRead}
             </div>
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
               <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
@@ -1579,7 +1641,7 @@ function HallOGridTheater({
             </button>
           </div>
 
-          {!mobile && showLegend ? (
+          {false ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
               {(['active', 'marginal', 'blocked'] as const).map((state) => {
                 const meta = WORLD_STATE_META[state]
@@ -1881,7 +1943,7 @@ export function CommandCenterShell() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {snapshot.frames.map((item) => (
-                  <FeedCard key={item.id} f={item} active={sel === item.id} anyActive={Boolean(sel)} onTap={selectFrame} />
+                  <FeedCard key={item.id} f={item} active={sel === item.id} anyActive={Boolean(sel)} onTap={selectFrame} priority={item.id === snapshot.selectedFrameId || (!snapshot.selectedFrameId && item.id === snapshot.frames[0]?.id)} />
                 ))}
               </div>
             </div>
