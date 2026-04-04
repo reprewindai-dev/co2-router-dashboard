@@ -1159,10 +1159,10 @@ function HallOGridTheater({
     return () => window.clearInterval(interval)
   }, [expanded, mobile, reducedMotion, selectedRegion])
 
-  const globeSize = mobile ? 470 : expanded ? 660 : 520
-  const radius = mobile ? 176 : expanded ? 244 : 192
+  const globeSize = mobile ? 510 : expanded ? 720 : 580
+  const radius = mobile ? 210 : expanded ? 298 : 236
   const center = globeSize / 2
-  const glowRadius = radius + (expanded ? 8 : 6)
+  const glowRadius = radius + (expanded ? 16 : 12)
 
   const projected = useMemo<ProjectedNode[]>(() => {
     const raw = nodes
@@ -1197,12 +1197,13 @@ function HallOGridTheater({
     const maxY = Math.max(...ys)
     const spanX = Math.max(maxX - minX, 1)
     const spanY = Math.max(maxY - minY, 1)
-    const spreadX = mobile ? 0.78 : 0.72
-    const spreadY = mobile ? 0.64 : 0.58
+    const spreadX = mobile ? 0.86 : 0.8
+    const spreadY = mobile ? 0.82 : 0.72
+    const vBias = mobile ? radius * 0.1 : 0
     const targetMinX = center - radius * spreadX
     const targetMaxX = center + radius * spreadX
-    const targetMinY = center - radius * spreadY
-    const targetMaxY = center + radius * spreadY
+    const targetMinY = center - radius * spreadY + vBias
+    const targetMaxY = center + radius * spreadY + vBias
 
     const normalized = raw.map((item) => ({
       ...item,
@@ -1212,7 +1213,7 @@ function HallOGridTheater({
         targetMinY + ((item.screenY - minY) / spanY) * (targetMaxY - targetMinY),
     }))
 
-    return spreadProjectedNodes(normalized, center, radius, mobile ? 58 : 38)
+    return spreadProjectedNodes(normalized, center, radius, mobile ? 72 : 48)
   }, [center, mobile, nodes, radius, rotation])
 
   const visibleByRegion = useMemo(() => new Map(projected.map((item) => [item.node.region, item])), [projected])
@@ -1243,6 +1244,7 @@ function HallOGridTheater({
             Math.min(from.opacity, to.opacity) *
             (flow.mode === 'blocked' ? 0.82 : connectedToSelection ? 0.95 : 0.34),
           width: connectedToSelection ? 2.35 : 1.1,
+          dashSpeed: flow.mode === 'blocked' ? 0 : connectedToSelection ? 1.6 : 3.8,
         }
       })
       .filter((item): item is NonNullable<typeof item> => item != null)
@@ -1386,8 +1388,11 @@ function HallOGridTheater({
             ) : null}
           </div>
         ) : null}
-        <div style={{ position: 'relative', minHeight: mobile ? 392 : expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
-          <div style={{ position: 'absolute', inset: mobile ? 8 : expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
+        <div style={{ position: 'relative', minHeight: mobile ? 468 : expanded ? 580 : 462, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
+          <div style={{ position: 'absolute', inset: mobile ? 4 : expanded ? 12 : 10, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
+          {selectedNode ? (
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 22, background: `radial-gradient(ellipse 52% 52% at 50% 50%, ${hex(worldStateColor(selectedNode), 0.08)} 0%, transparent 68%)`, pointerEvents: 'none', zIndex: 1, transition: 'background 0.5s ease' }} />
+          ) : null}
           <svg viewBox={`0 0 ${globeSize} ${globeSize}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
             <defs>
               <filter id="hallogrid-flow-glow-next">
@@ -1419,7 +1424,7 @@ function HallOGridTheater({
               <ellipse key={`lon-next-${ratio}`} cx={center} cy={center} rx={radius * ratio} ry={radius} fill="transparent" stroke={hex('#8fb8ff', Math.max(0.05, 0.16 - index * 0.015))} strokeWidth="0.7" transform={`rotate(${rotation * (0.12 + index * 0.03)} ${center} ${center})`} />
             ))}
             {flowPaths.map((flow) => (
-              <path key={flow.id} d={flow.d} fill="none" stroke={flow.color} strokeOpacity={flow.opacity} strokeWidth={flow.width} filter="url(#hallogrid-flow-glow-next)" />
+              <path key={flow.id} d={flow.d} fill="none" stroke={flow.color} strokeOpacity={flow.opacity} strokeWidth={flow.width} filter="url(#hallogrid-flow-glow-next)" strokeDasharray={flow.dashSpeed > 0 ? '10 6' : undefined} style={flow.dashSpeed > 0 ? { animation: `hallogrid-flow-travel ${flow.dashSpeed}s linear infinite` } : undefined} />
             ))}
             {actionableNodes.map((item) => {
               const isSelected = item.node.region === selectedRegion
@@ -1432,6 +1437,22 @@ function HallOGridTheater({
                 </g>
               )
             })}
+          {!mobile && actionableNodes.filter((item) => item.depth > 0.15).map((item) => (
+            <text
+              key={`lbl-${item.node.region}`}
+              x={item.screenX}
+              y={item.screenY - Math.max(13, 15 * item.scale) - 2}
+              textAnchor="middle"
+              fill={item.color}
+              fillOpacity={Math.min(0.82, item.opacity * 0.9)}
+              fontSize={Math.max(7.5, 8.5 * item.scale)}
+              fontFamily="'JetBrains Mono', monospace"
+              letterSpacing="0.06em"
+              style={{ pointerEvents: 'none', userSelect: 'none' }}
+            >
+              {item.node.label}
+            </text>
+          ))}
           </svg>
           {actionableNodes.map((item) => {
             const stateMeta = WORLD_STATE_META[item.node.state]
@@ -1503,7 +1524,7 @@ function HallOGridTheater({
               {selectedNode ? <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t1, letterSpacing: '0.04em' }}>{provider.label}</span> : null}
             </div>
           ))}
-          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: mobile ? '76%' : '52%' }}>
+          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 6, maxWidth: mobile ? '68%' : '40%' }}>
             {([
               ['RUN', activeCount, A.run_now],
               ['GUARDED', guardedCount, A.reroute],
@@ -1517,35 +1538,40 @@ function HallOGridTheater({
             ))}
           </div>
           {!mobile && selectedNode ? (
-            <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+            <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 208 : 184, maxWidth: '32%', padding: '10px 11px', borderRadius: 16, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
             <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>REGION LOCK</div>
-            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 18, fontWeight: 700, color: P.t0 }}>{selectedNode.label}</span>
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 7, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.t0 }}>{selectedNode.label}</span>
               {selectedState ? <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
             </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: P.t1, lineHeight: 1.55 }}>
+            <div style={{ marginTop: 6, fontSize: 10, color: P.t1, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
               {selectedDecisionRead}
             </div>
-            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
-                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>CONFIDENCE</div>
-                <div style={{ marginTop: 4, fontSize: 11, color: confidenceColor(selectedConfidence) }}>{selectedConfidenceLabel}</div>
+            <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 5 }}>
+              <div style={{ padding: '6px 8px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 8, color: P.t3 }}>CONF</div>
+                <div style={{ marginTop: 3, fontSize: 10, color: confidenceColor(selectedConfidence) }}>{selectedConfidenceLabel}</div>
               </div>
-              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
-                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>FRESHNESS</div>
-                <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedFreshness}</div>
+              <div style={{ padding: '6px 8px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 8, color: P.t3 }}>FRESHNESS</div>
+                <div style={{ marginTop: 3, fontSize: 10, color: P.t1 }}>{selectedFreshness}</div>
               </div>
-              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
-                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>ROUTE</div>
-                <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedRoutePressureLabel}</div>
+              <div style={{ padding: '6px 8px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 8, color: P.t3 }}>ROUTE</div>
+                <div style={{ marginTop: 3, fontSize: 10, color: P.t1 }}>{selectedRoutePressureLabel}</div>
               </div>
-              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
-                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>LANES</div>
-                <div style={{ marginTop: 4, fontSize: 11, color: blockedFocusFlowCount > 0 ? A.deny : '#dbeafe' }}>{selectedNode ? `${connectedFlows.length} active / ${blockedFocusFlowCount} blocked` : `${flowPaths.length} visible`}</div>
+              <div style={{ padding: '6px 8px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 8, color: P.t3 }}>LANES</div>
+                <div style={{ marginTop: 3, fontSize: 10, color: blockedFocusFlowCount > 0 ? A.deny : '#dbeafe' }}>{selectedNode ? `${connectedFlows.length}/${blockedFocusFlowCount}` : `${flowPaths.length}`}</div>
               </div>
             </div>
             </div>
           ) : null}
+          <div style={{ position: 'absolute', left: 16, right: 16, bottom: 46, height: 3, borderRadius: 2, display: 'flex', overflow: 'hidden', background: hex('#ffffff', 0.05), pointerEvents: 'none' }}>
+            <div style={{ flex: activeCount || 0, background: A.run_now, opacity: 0.78 }} />
+            <div style={{ flex: guardedCount || 0, background: A.reroute, opacity: 0.78 }} />
+            <div style={{ flex: blockedCount || 0, background: A.deny, opacity: 0.78 }} />
+          </div>
           <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
             <span>{selectedNode ? `FOCUS ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}</span>
             {selectedState ? <span style={{ color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
@@ -1861,7 +1887,7 @@ export function CommandCenterShell() {
 
   return (
     <div style={{ background: P.bg0, color: P.t1, minHeight: '100vh', fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif", position: 'relative', overflow: 'hidden' }}>
-      <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');:root{--m:'JetBrains Mono',monospace;}@keyframes hallogrid-breathe{0%,100%{transform:translate(0,0) scale(1);opacity:.5;}50%{transform:translate(-2%,1.5%) scale(1.04);opacity:.75;}}@keyframes hallogrid-pulse{0%,100%{opacity:.35;transform:scale(1);}50%{opacity:0;transform:scale(2.5);}}@keyframes hallogrid-pulse-soft{0%,100%{opacity:1;}50%{opacity:.65;}}@keyframes hallogrid-beacon-fast{0%,100%{opacity:.15;transform:scale(.85);}50%{opacity:1;transform:scale(1.2);}}@keyframes hallogrid-beacon-slow{0%,100%{opacity:.2;transform:scale(.9);}50%{opacity:.75;transform:scale(1.08);}}@keyframes hallogrid-beacon-irregular{0%,20%,60%,100%{opacity:.18;transform:scale(.88);}10%,32%,74%{opacity:.95;transform:scale(1.12);}45%{opacity:.38;transform:scale(.96);}}@keyframes hallogrid-inspector-in{from{opacity:0;transform:translateX(28px);}to{opacity:1;transform:translateX(0);}}@keyframes hallogrid-sheet-up{from{transform:translateY(100%);}to{transform:translateY(0);}}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${P.borderLit};border-radius:2px;}button{font-family:inherit;}button:focus-visible{outline:2px solid ${P.accent};outline-offset:2px;}`}</style>
+      <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');:root{--m:'JetBrains Mono',monospace;}@keyframes hallogrid-breathe{0%,100%{transform:translate(0,0) scale(1);opacity:.5;}50%{transform:translate(-2%,1.5%) scale(1.04);opacity:.75;}}@keyframes hallogrid-pulse{0%,100%{opacity:.35;transform:scale(1);}50%{opacity:0;transform:scale(2.5);}}@keyframes hallogrid-pulse-soft{0%,100%{opacity:1;}50%{opacity:.65;}}@keyframes hallogrid-beacon-fast{0%,100%{opacity:.15;transform:scale(.85);}50%{opacity:1;transform:scale(1.2);}}@keyframes hallogrid-beacon-slow{0%,100%{opacity:.2;transform:scale(.9);}50%{opacity:.75;transform:scale(1.08);}}@keyframes hallogrid-beacon-irregular{0%,20%,60%,100%{opacity:.18;transform:scale(.88);}10%,32%,74%{opacity:.95;transform:scale(1.12);}45%{opacity:.38;transform:scale(.96);}}@keyframes hallogrid-inspector-in{from{opacity:0;transform:translateX(28px);}to{opacity:1;transform:translateX(0);}}@keyframes hallogrid-sheet-up{from{transform:translateY(100%);}to{transform:translateY(0);}}@keyframes hallogrid-flow-travel{to{stroke-dashoffset:-80;}}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${P.borderLit};border-radius:2px;}button{font-family:inherit;}button:focus-visible{outline:2px solid ${P.accent};outline-offset:2px;}`}</style>
       <BackgroundGrid active={Boolean(sel)} color={activeColor} />
       <HeaderBar title={snapshot.title} subtitle={snapshot.subtitle} streamHealthy={snapshot.transport.streamHealthy} generatedAt={snapshot.generatedAt} mobile={mobile} />
       <TelemetryStrip frames={snapshot.frames} mobile={mobile} />

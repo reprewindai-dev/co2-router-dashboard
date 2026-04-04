@@ -1,0 +1,92 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - link "CO2 Router Decision Infrastructure Interface" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e6]:
+          - img [ref=e7]
+          - generic "CO2 Router" [ref=e8]:
+            - text: CO
+            - subscript [ref=e9]: "2"
+            - text: Router
+        - paragraph [ref=e10]: Decision Infrastructure Interface
+      - navigation [ref=e11]:
+        - link "Overview" [ref=e12] [cursor=pointer]:
+          - /url: /
+        - link "Design Partners" [ref=e13] [cursor=pointer]:
+          - /url: /design-partners
+        - link "Control Surface" [ref=e14] [cursor=pointer]:
+          - /url: /console
+        - link "Assurance" [ref=e15] [cursor=pointer]:
+          - /url: /assurance
+        - link "Status" [ref=e16] [cursor=pointer]:
+          - /url: /status
+        - link "Methodology" [ref=e17] [cursor=pointer]:
+          - /url: /methodology
+        - link "Blog" [ref=e18] [cursor=pointer]:
+          - /url: /blog
+        - link "Engine Health" [ref=e19] [cursor=pointer]:
+          - /url: /api/ecobe/ci/health
+        - generic [ref=e20]: Live
+  - main [ref=e21]:
+    - generic [ref=e22]: Loading command center...
+  - contentinfo [ref=e23]:
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]: CO2 Router
+        - generic [ref=e27]: Deterministic Environmental Execution Control Plane
+        - paragraph [ref=e28]: Authorize compute before it runs. Prove every decision.
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e31]: Product
+          - generic [ref=e32]:
+            - link "Overview" [ref=e33] [cursor=pointer]:
+              - /url: /
+            - link "Design Partners" [ref=e34] [cursor=pointer]:
+              - /url: /design-partners
+            - link "Control Surface" [ref=e35] [cursor=pointer]:
+              - /url: /console
+            - link "Assurance" [ref=e36] [cursor=pointer]:
+              - /url: /assurance
+            - link "Status" [ref=e37] [cursor=pointer]:
+              - /url: /status
+            - link "Methodology" [ref=e38] [cursor=pointer]:
+              - /url: /methodology
+            - link "Blog" [ref=e39] [cursor=pointer]:
+              - /url: /blog
+        - generic [ref=e40]:
+          - generic [ref=e41]: Developers
+          - generic [ref=e42]:
+            - link "API" [ref=e43] [cursor=pointer]:
+              - /url: /developers/api
+            - link "Adapters" [ref=e44] [cursor=pointer]:
+              - /url: /developers/adapters
+            - link "Architecture" [ref=e45] [cursor=pointer]:
+              - /url: /developers/architecture
+            - link "Quickstart" [ref=e46] [cursor=pointer]:
+              - /url: /developers/quickstart
+        - generic [ref=e47]:
+          - generic [ref=e48]: System
+          - generic [ref=e49]:
+            - link "Decision Engine" [ref=e50] [cursor=pointer]:
+              - /url: /system/decision-engine
+            - link "SAIQ Governance" [ref=e51] [cursor=pointer]:
+              - /url: /system/saiq-governance
+            - link "Trace Ledger" [ref=e52] [cursor=pointer]:
+              - /url: /system/trace-ledger
+            - link "Replay" [ref=e53] [cursor=pointer]:
+              - /url: /system/replay
+            - link "Provenance" [ref=e54] [cursor=pointer]:
+              - /url: /system/provenance
+        - generic [ref=e55]:
+          - generic [ref=e56]: Company
+          - generic [ref=e57]:
+            - link "About" [ref=e58] [cursor=pointer]:
+              - /url: /company/about
+            - link "Security" [ref=e59] [cursor=pointer]:
+              - /url: /company/security
+            - link "Roadmap" [ref=e60] [cursor=pointer]:
+              - /url: /company/roadmap
+            - link "Contact" [ref=e61] [cursor=pointer]:
+              - /url: /contact
+      - generic [ref=e62]: © 2026 CO2 Router
