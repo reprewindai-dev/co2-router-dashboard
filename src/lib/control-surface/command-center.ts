@@ -555,13 +555,37 @@ function buildWorldNodes(
   decisions: CommandCenterDecisionItem[],
   selectedTrace: DecisionTraceRawRecord | null,
   selectedReplay: LiveSystemReplayResponse | null,
+  providerTrust: ProviderTrustResponse,
   providers: ControlSurfaceProviderNode[]
 ): WorldRegionState[] {
   const seen = new Map<string, CommandCenterDecisionItem>()
+  const latestObservedByRegion = new Map<string, string>()
+  const confidenceByRegion = new Map<string, number>()
+
+  const registerRegionSignal = (region: string, observedAt: string | null | undefined, confidence: number | null | undefined) => {
+    const anchor = REGION_ANCHORS[region]
+    if (!anchor) return
+
+    if (observedAt) {
+      const current = latestObservedByRegion.get(region)
+      if (!current || new Date(observedAt).getTime() > new Date(current).getTime()) {
+        latestObservedByRegion.set(region, observedAt)
+      }
+    }
+
+    if (typeof confidence === 'number' && Number.isFinite(confidence)) {
+      const current = confidenceByRegion.get(region)
+      if (current == null || confidence > current) {
+        confidenceByRegion.set(region, confidence)
+      }
+    }
+  }
+
   decisions.forEach((decision) => {
     if (!seen.has(decision.selectedRegion)) {
       seen.set(decision.selectedRegion, decision)
     }
+    registerRegionSignal(decision.selectedRegion, decision.createdAt, decision.signalConfidence)
   })
 
   const baselineRegion = selectedReplay?.persisted?.baseline.region ?? selectedReplay?.replay?.baseline.region ?? null
@@ -590,6 +614,92 @@ function buildWorldNodes(
       fallbackUsed: Boolean(selectedReplay?.persisted?.fallbackUsed ?? selectedReplay?.replay.fallbackUsed),
       systemState: 'marginal',
     })
+  }
+  registerRegionSignal(
+    baselineRegion ?? '',
+    selectedReplay?.replayedAt ?? null,
+    selectedReplay?.persisted?.signalConfidence ?? selectedReplay?.replay.signalConfidence ?? null
+  )
+
+  const replayCandidates =
+    selectedReplay?.persisted?.candidateEvaluations?.length
+      ? selectedReplay.persisted.candidateEvaluations
+      : selectedReplay?.replay.candidateEvaluations ?? []
+
+  for (const candidate of replayCandidates) {
+    registerRegionSignal(
+      candidate.region,
+      selectedReplay?.replayedAt ?? null,
+      selectedReplay?.persisted?.signalConfidence ?? selectedReplay?.replay.signalConfidence ?? null
+    )
+
+    if (seen.has(candidate.region)) continue
+
+    const blocked = Boolean(candidate.guardrailCandidateBlocked || candidate.capacityCandidateBlocked)
+    const guarded =
+      !blocked &&
+      (candidate.capacity?.pressureLevel === 'high' ||
+        candidate.capacity?.pressureLevel === 'severe' ||
+        candidate.capacity?.pressureLevel === 'elevated' ||
+        (candidate.defensibleReasonCodes?.length ?? 0) > 0)
+
+    seen.set(candidate.region, {
+      decisionFrameId: `${selectedReplay?.decisionFrameId ?? 'candidate'}:${candidate.region}`,
+      createdAt: selectedReplay?.replayedAt ?? new Date().toISOString(),
+      action: blocked ? 'deny' : guarded ? 'reroute' : 'run_now',
+      reasonCode:
+        candidate.guardrailReasons?.[0] ??
+        candidate.capacityReasonCodes?.[0] ??
+        candidate.defensibleReasonCodes?.[0] ??
+        'CANDIDATE_REGION',
+      selectedRegion: candidate.region,
+      proofHash: selectedReplay?.persisted?.proofHash ?? selectedReplay?.replay.proofHash ?? null,
+      traceAvailable: Boolean(selectedTrace),
+      governanceSource: selectedTrace?.payload.governance.source ?? null,
+      latencyTotalMs: selectedReplay?.persisted?.latencyMs?.total ?? selectedReplay?.replay.latencyMs?.total ?? null,
+      latencyComputeMs:
+        selectedReplay?.persisted?.latencyMs?.compute ?? selectedReplay?.replay.latencyMs?.compute ?? null,
+      signalConfidence:
+        selectedReplay?.persisted?.signalConfidence ?? selectedReplay?.replay.signalConfidence ?? null,
+      signalMode: selectedReplay?.persisted?.signalMode ?? selectedReplay?.replay.signalMode ?? null,
+      accountingMethod:
+        selectedReplay?.persisted?.accountingMethod ?? selectedReplay?.replay.accountingMethod ?? null,
+      waterAuthorityMode:
+        selectedReplay?.persisted?.waterAuthority.authorityMode ??
+        selectedReplay?.replay.waterAuthority.authorityMode ??
+        null,
+      fallbackUsed: Boolean(selectedReplay?.persisted?.fallbackUsed ?? selectedReplay?.replay.fallbackUsed),
+      systemState: blocked ? 'blocked' : guarded ? 'marginal' : 'active',
+    })
+  }
+
+  for (const snapshots of Object.values(providerTrust.providers)) {
+    for (const snapshot of snapshots) {
+      registerRegionSignal(snapshot.zone, snapshot.observedAt, snapshot.confidence)
+      if (seen.has(snapshot.zone) || !REGION_ANCHORS[snapshot.zone]) continue
+
+      const degraded =
+        typeof snapshot.freshnessSec === 'number' && snapshot.freshnessSec > 1800
+
+      seen.set(snapshot.zone, {
+        decisionFrameId: `surface:${snapshot.zone}`,
+        createdAt: snapshot.observedAt ?? new Date().toISOString(),
+        action: degraded ? 'delay' : 'run_now',
+        reasonCode: degraded ? 'SIGNAL_DEGRADED' : 'SIGNAL_PRESENT',
+        selectedRegion: snapshot.zone,
+        proofHash: null,
+        traceAvailable: false,
+        governanceSource: null,
+        latencyTotalMs: null,
+        latencyComputeMs: null,
+        signalConfidence: snapshot.confidence ?? null,
+        signalMode: degraded ? 'fallback' : 'average',
+        accountingMethod: 'average',
+        waterAuthorityMode: null,
+        fallbackUsed: degraded,
+        systemState: degraded ? 'marginal' : 'active',
+      })
+    }
   }
 
   const routeMeta = new Map<string, { routePressure: number; blockedFocusLanes: number }>()
@@ -630,8 +740,8 @@ function buildWorldNodes(
       pressureLevel: toPressureLevel(decision, routeState.routePressure, routeState.blockedFocusLanes),
       providerHealth,
       selected: false,
-      lastChangedAt: decision.createdAt,
-      signalConfidence: decision.signalConfidence,
+      lastChangedAt: latestObservedByRegion.get(decision.selectedRegion) ?? decision.createdAt,
+      signalConfidence: confidenceByRegion.get(decision.selectedRegion) ?? decision.signalConfidence,
       routePressure: routeState.routePressure,
       blockedFocusLanes: routeState.blockedFocusLanes,
       decisionFrameId: decision.decisionFrameId,
@@ -738,7 +848,7 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
       : [null, null]
 
   const providers = buildProviders(providerTrust, provenance)
-  const worldNodes = buildWorldNodes(recentDecisions, selectedTrace, selectedReplay, providers)
+  const worldNodes = buildWorldNodes(recentDecisions, selectedTrace, selectedReplay, providerTrust, providers)
   const worldFlows = buildWorldFlows(selectedReplay)
   const selectedScore =
     selectedTrace?.payload.normalizedSignals.candidates.find(
