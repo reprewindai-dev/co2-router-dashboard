@@ -1119,7 +1119,7 @@ function HallOGridTheater({
   const glowRadius = radius + (expanded ? 8 : 6)
 
   const projected = useMemo<ProjectedNode[]>(() => {
-    return nodes
+    const raw = nodes
       .map((node) => {
         const lon = (node.x / 100) * 360 - 180
         const lat = 90 - (node.y / 100) * 180
@@ -1140,7 +1140,30 @@ function HallOGridTheater({
         }
       })
       .sort((a, b) => a.depth - b.depth)
-  }, [center, nodes, radius, rotation])
+
+    if (!mobile || raw.length <= 1) return raw
+
+    const xs = raw.map((item) => item.screenX)
+    const ys = raw.map((item) => item.screenY)
+    const minX = Math.min(...xs)
+    const maxX = Math.max(...xs)
+    const minY = Math.min(...ys)
+    const maxY = Math.max(...ys)
+    const spanX = Math.max(maxX - minX, 1)
+    const spanY = Math.max(maxY - minY, 1)
+    const targetMinX = center - radius * 0.66
+    const targetMaxX = center + radius * 0.66
+    const targetMinY = center - radius * 0.52
+    const targetMaxY = center + radius * 0.52
+
+    return raw.map((item) => ({
+      ...item,
+      screenX:
+        targetMinX + ((item.screenX - minX) / spanX) * (targetMaxX - targetMinX),
+      screenY:
+        targetMinY + ((item.screenY - minY) / spanY) * (targetMaxY - targetMinY),
+    }))
+  }, [center, mobile, nodes, radius, rotation])
 
   const visibleByRegion = useMemo(() => new Map(projected.map((item) => [item.node.region, item])), [projected])
 
