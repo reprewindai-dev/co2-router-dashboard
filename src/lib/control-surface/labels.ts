@@ -28,7 +28,8 @@ export function formatFreshness(seconds: number | null): string {
   if (seconds == null || seconds < 0) return 'Mirror freshness unavailable'
   if (seconds < 60) return `${seconds}s fresh`
   if (seconds < 3600) return `${Math.round(seconds / 60)}m fresh`
-  return `${Math.round(seconds / 3600)}h fresh`
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h fresh`
+  return `${Math.round(seconds / 86400)}d stale`
 }
 
 export function latencyToneClass(totalMs: number | null | undefined): string {

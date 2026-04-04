@@ -242,12 +242,63 @@ function buildCommandCenterDecisionItem(decision: DecisionRow): CommandCenterDec
     governanceSource: decision.governanceSource ?? null,
     latencyTotalMs: decision.latencyMs?.total ?? null,
     latencyComputeMs: decision.latencyMs?.compute ?? null,
+    signalConfidence: decision.signalConfidence ?? null,
     signalMode: decision.signalMode ?? null,
     accountingMethod: decision.accountingMethod ?? null,
     waterAuthorityMode: decision.waterAuthorityMode ?? null,
     fallbackUsed: decision.fallbackUsed,
     systemState: toWorldExecutionState(decision),
   }
+}
+
+function toConfidenceTier(value: number | null | undefined): WorldRegionState['confidenceTier'] {
+  if (value == null) return 'medium'
+  if (value >= 0.85) return 'high'
+  if (value >= 0.65) return 'medium'
+  return 'low'
+}
+
+function toFreshnessState(
+  decision: CommandCenterDecisionItem,
+  providers: ControlSurfaceProviderNode[]
+): WorldRegionState['freshnessState'] {
+  const degradedProviders = providers.filter((provider) => provider.status === 'degraded').length
+  const offlineProviders = providers.filter((provider) => provider.status === 'offline').length
+
+  if (decision.signalMode === 'fallback' || decision.waterAuthorityMode === 'fallback' || offlineProviders > 0) {
+    return 'stale'
+  }
+
+  if (decision.fallbackUsed || degradedProviders > 0) {
+    return 'degraded'
+  }
+
+  return 'fresh'
+}
+
+function toPressureLevel(
+  decision: CommandCenterDecisionItem,
+  routePressure: number,
+  blockedFocusLanes: number
+): WorldRegionState['pressureLevel'] {
+  if (
+    decision.action === 'deny' ||
+    decision.action === 'delay' ||
+    decision.action === 'throttle' ||
+    blockedFocusLanes > 0 ||
+    decision.fallbackUsed
+  ) {
+    return 'high'
+  }
+
+  if (routePressure > 0 || decision.action === 'reroute') return 'medium'
+  return 'low'
+}
+
+function toDecisionState(state: WorldExecutionState): WorldRegionState['decisionState'] {
+  if (state === 'active') return 'run'
+  if (state === 'marginal') return 'guarded'
+  return 'blocked'
 }
 
 function buildProviders(
@@ -503,7 +554,8 @@ function resolveRegionAnchor(region: string, index: number) {
 function buildWorldNodes(
   decisions: CommandCenterDecisionItem[],
   selectedTrace: DecisionTraceRawRecord | null,
-  selectedReplay: LiveSystemReplayResponse | null
+  selectedReplay: LiveSystemReplayResponse | null,
+  providers: ControlSurfaceProviderNode[]
 ): WorldRegionState[] {
   const seen = new Map<string, CommandCenterDecisionItem>()
   decisions.forEach((decision) => {
@@ -526,6 +578,8 @@ function buildWorldNodes(
       latencyTotalMs: selectedReplay?.persisted?.latencyMs?.total ?? selectedReplay?.replay.latencyMs?.total ?? null,
       latencyComputeMs:
         selectedReplay?.persisted?.latencyMs?.compute ?? selectedReplay?.replay.latencyMs?.compute ?? null,
+      signalConfidence:
+        selectedReplay?.persisted?.signalConfidence ?? selectedReplay?.replay.signalConfidence ?? null,
       signalMode: selectedReplay?.persisted?.signalMode ?? selectedReplay?.replay.signalMode ?? null,
       accountingMethod:
         selectedReplay?.persisted?.accountingMethod ?? selectedReplay?.replay.accountingMethod ?? null,
@@ -538,14 +592,48 @@ function buildWorldNodes(
     })
   }
 
+  const routeMeta = new Map<string, { routePressure: number; blockedFocusLanes: number }>()
+  const replaySelectedRegion =
+    selectedReplay?.persisted?.selectedRegion ?? selectedReplay?.replay.selectedRegion ?? null
+  const selectedAction = selectedReplay?.persisted?.decision ?? selectedReplay?.replay.decision ?? null
+
+  if (baselineRegion && replaySelectedRegion) {
+    const blocked = !(selectedAction === 'run_now' || selectedAction === 'reroute')
+    routeMeta.set(baselineRegion, {
+      routePressure: (routeMeta.get(baselineRegion)?.routePressure ?? 0) + 1,
+      blockedFocusLanes: (routeMeta.get(baselineRegion)?.blockedFocusLanes ?? 0) + (blocked ? 1 : 0),
+    })
+    routeMeta.set(replaySelectedRegion, {
+      routePressure: (routeMeta.get(replaySelectedRegion)?.routePressure ?? 0) + 1,
+      blockedFocusLanes: (routeMeta.get(replaySelectedRegion)?.blockedFocusLanes ?? 0) + (blocked ? 1 : 0),
+    })
+  }
+
+  const providerHealth = {
+    healthy: providers.filter((provider) => provider.status === 'healthy').length,
+    degraded: providers.filter((provider) => provider.status === 'degraded').length,
+    offline: providers.filter((provider) => provider.status === 'offline').length,
+  }
+
   return Array.from(seen.values()).map((decision, index) => {
     const anchor = resolveRegionAnchor(decision.selectedRegion, index)
+    const routeState = routeMeta.get(decision.selectedRegion) ?? { routePressure: 0, blockedFocusLanes: 0 }
     return {
       region: decision.selectedRegion,
       label: anchor.label,
       x: anchor.x,
       y: anchor.y,
       state: decision.systemState,
+      decisionState: toDecisionState(decision.systemState),
+      confidenceTier: toConfidenceTier(decision.signalConfidence),
+      freshnessState: toFreshnessState(decision, providers),
+      pressureLevel: toPressureLevel(decision, routeState.routePressure, routeState.blockedFocusLanes),
+      providerHealth,
+      selected: false,
+      lastChangedAt: decision.createdAt,
+      signalConfidence: decision.signalConfidence,
+      routePressure: routeState.routePressure,
+      blockedFocusLanes: routeState.blockedFocusLanes,
       decisionFrameId: decision.decisionFrameId,
       action: decision.action,
       reasonCode: decision.reasonCode,
@@ -650,7 +738,7 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
       : [null, null]
 
   const providers = buildProviders(providerTrust, provenance)
-  const worldNodes = buildWorldNodes(recentDecisions, selectedTrace, selectedReplay)
+  const worldNodes = buildWorldNodes(recentDecisions, selectedTrace, selectedReplay, providers)
   const worldFlows = buildWorldFlows(selectedReplay)
   const selectedScore =
     selectedTrace?.payload.normalizedSignals.candidates.find(

@@ -129,9 +129,12 @@ function buildTrust(
 ): HallOGridFrame['trust'] {
   if (!trust) return buildFallbackTrust(decision)
 
+  const carbonFreshness = formatFreshness(trust.signalFreshness.carbonFreshnessSec)
+  const waterFreshness = formatFreshness(trust.signalFreshness.waterFreshnessSec)
+
   return {
     tier: trust.providerTrust.providerTrustTier,
-    freshnessLabel: trust.signalFreshness.freshnessSummary,
+    freshnessLabel: `Carbon ${carbonFreshness} | Water ${waterFreshness}`,
     replayability: trust.replayability.summary,
     degraded: trust.degradedState.degraded,
     summary: trust.degradedState.degraded

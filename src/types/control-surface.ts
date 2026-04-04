@@ -808,6 +808,7 @@ export interface CommandCenterDecisionItem {
   governanceSource: string | null
   latencyTotalMs: number | null
   latencyComputeMs: number | null
+  signalConfidence: number | null
   signalMode: 'marginal' | 'average' | 'fallback' | null
   accountingMethod: 'marginal' | 'flow-traced' | 'average' | null
   waterAuthorityMode: 'basin' | 'facility_overlay' | 'fallback' | null
@@ -821,6 +822,20 @@ export interface WorldRegionState {
   x: number
   y: number
   state: WorldExecutionState
+  decisionState: 'run' | 'guarded' | 'blocked'
+  confidenceTier: 'high' | 'medium' | 'low'
+  freshnessState: 'fresh' | 'degraded' | 'stale'
+  pressureLevel: 'low' | 'medium' | 'high'
+  providerHealth: {
+    healthy: number
+    degraded: number
+    offline: number
+  }
+  selected: boolean
+  lastChangedAt: string | null
+  signalConfidence: number | null
+  routePressure: number
+  blockedFocusLanes: number
   decisionFrameId: string | null
   action: string | null
   reasonCode: string | null

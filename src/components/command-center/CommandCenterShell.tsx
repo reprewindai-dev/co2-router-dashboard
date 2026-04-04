@@ -2,7 +2,7 @@
 
 import { formatDistanceToNowStrict } from 'date-fns'
 import { Activity, Globe2, Lock, Radar, RefreshCw, X } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 
 import { ACTION_META } from '@/components/control-surface/action-styles'
 import { useHallOGridFrame, useHallOGridSnapshot } from '@/lib/hooks/control-surface'
@@ -90,6 +90,47 @@ const shortHash = (v: string | null | undefined, len = 20) =>
   !v ? 'Unavailable' : v.length <= len ? v : `${v.slice(0, len)}...`
 const confidenceGrade = (v: number | null | undefined) =>
   v == null ? '--' : v >= 90 ? 'A' : v >= 80 ? 'B' : v >= 70 ? 'C' : 'D'
+
+const shortFreshness = (label: string) =>
+  label
+    .replace(/Carbon /gi, 'C ')
+    .replace(/Water /gi, 'W ')
+    .replace(/\s*\|\s*/g, ' | ')
+
+const compactDecisionRead = (frame: HallOGridFrame | null) => {
+  if (!frame) return 'Select a region to read decision posture.'
+  const action = ACTION_META[frame.action].label
+  const constraint = frame.explanation.dominantConstraint || frame.reasonLabel
+  return `${action}: ${constraint}`.replace(/\s+/g, ' ').trim()
+}
+
+function regionRingDash(node: WorldRegionState) {
+  if (node.confidenceTier === 'low') return '4 6'
+  if (node.confidenceTier === 'medium') return '10 6'
+  return undefined
+}
+
+function regionRingOpacity(node: WorldRegionState) {
+  if (node.confidenceTier === 'high') return 0.9
+  if (node.confidenceTier === 'medium') return 0.65
+  return 0.45
+}
+
+function regionPulse(node: WorldRegionState, reducedMotion: boolean) {
+  if (reducedMotion) return 'none'
+  if (node.freshnessState === 'stale' || node.confidenceTier === 'low') {
+    return 'hallogrid-beacon-irregular 2.4s steps(5, end) infinite'
+  }
+  if (node.state === 'active') return 'hallogrid-beacon-fast 1.4s ease-in-out infinite'
+  if (node.state === 'marginal') return 'hallogrid-beacon-slow 2.8s ease-in-out infinite'
+  return 'none'
+}
+
+function pressureGlow(node: WorldRegionState) {
+  if (node.pressureLevel === 'high') return 0.24
+  if (node.pressureLevel === 'medium') return 0.16
+  return 0.1
+}
 
 function worldStateColor(node: WorldRegionState) {
   if (node.action && node.action in A) return A[node.action as HallOGridFrame['action']]
@@ -436,6 +477,7 @@ function GlobePanel({
 }) {
   const [rotation, setRotation] = useState(0)
   const [reducedMotion, setReducedMotion] = useState(false)
+  const [showLegend, setShowLegend] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -456,8 +498,8 @@ function GlobePanel({
     return () => window.clearInterval(interval)
   }, [expanded, reducedMotion, selectedRegion])
 
-  const globeSize = expanded ? 580 : 470
-  const radius = expanded ? 212 : 176
+  const globeSize = expanded ? 660 : 520
+  const radius = expanded ? 244 : 192
   const center = globeSize / 2
   const glowRadius = radius + (expanded ? 8 : 6)
 
@@ -551,6 +593,36 @@ function GlobePanel({
   })
   const healthyProviders = providers.filter((provider) => provider.status === 'healthy').length
   const degradedProviders = providers.filter((provider) => provider.status === 'degraded').length
+  const offlineProviders = Math.max(0, providers.length - healthyProviders - degradedProviders)
+  const providerNodes = selectedNode ? providerMesh : providerMesh.slice(0, Math.min(providerMesh.length, 2))
+  const selectedDecisionRead = compactDecisionRead(selectedFrame)
+  const selectedFreshness = selectedFrame ? shortFreshness(selectedFrame.trust.freshnessLabel) : 'Awaiting focus'
+  const selectedConfidence = selectedFrame?.metrics.signalConfidence ?? selectedNode?.signalConfidence ?? null
+  const selectedPressure = selectedNode?.pressureLevel ?? null
+  const selectedConfidenceLabel =
+    selectedNode?.confidenceTier != null
+      ? selectedNode.confidenceTier.toUpperCase()
+      : selectedConfidence != null
+        ? selectedConfidence >= 85
+          ? 'HIGH'
+          : selectedConfidence >= 68
+            ? 'MEDIUM'
+            : 'LOW'
+        : 'UNKNOWN'
+  const selectedRoutePressureLabel =
+    selectedPressure != null ? `${selectedPressure.toUpperCase()} PRESSURE` : 'NO PRESSURE READ'
+  const telemetryItems = [
+    { label: 'Routes', value: String(flowPaths.length), color: '#dbeafe' },
+    { label: 'Blocked', value: String(blockedFocusFlowCount), color: blockedFocusFlowCount > 0 ? A.deny : P.t2 },
+    { label: 'Healthy', value: String(healthyProviders), color: healthyProviders > 0 ? A.run_now : P.t2 },
+    { label: 'Degraded', value: String(degradedProviders), color: degradedProviders > 0 ? A.reroute : P.t2 },
+    { label: 'Offline', value: String(offlineProviders), color: offlineProviders > 0 ? A.deny : P.t2 },
+    {
+      label: 'Lag',
+      value: projectionLagSec == null ? 'N/A' : `${projectionLagSec}s`,
+      color: projectionLagSec != null && projectionLagSec > 60 ? A.reroute : P.t1,
+    },
+  ]
 
   return (
     <div style={{ padding: '18px 18px 16px', borderRadius: 24, background: `linear-gradient(180deg, ${hex('#0a1220', 0.22)} 0%, ${hex('#07101a', 0.12)} 18%, ${hex('#020309', 0.94)} 66%, ${hex('#000000', 0.98)} 100%)`, border: `1px solid ${hex(P.accent, 0.12)}`, boxShadow: `0 24px 60px ${hex('#000000', 0.36)}` }}>
@@ -561,7 +633,7 @@ function GlobePanel({
             LIVE GRID THEATER
           </div>
           <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>
-            Click a beacon or a frame. The globe locks onto region state, route pressure, and operator proof context.
+            Regions are the execution surface. Pulse, ring, and lane weight show where to run, where to hold, and how trustworthy the posture is.
           </div>
         </div>
         <div style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.2) : hex(A.reroute, 0.24)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
@@ -631,28 +703,37 @@ function GlobePanel({
                   <circle
                     cx={item.screenX}
                     cy={item.screenY}
-                    r={12 * item.scale}
-                    fill={hex(item.color, isSelected ? 0.16 : 0.08)}
+                    r={(item.node.pressureLevel === 'high' ? 17 : item.node.pressureLevel === 'medium' ? 14 : 11) * item.scale}
+                    fill={hex(item.color, isSelected ? 0.24 : pressureGlow(item.node))}
                     stroke="none"
                     filter="url(#hallogrid-flow-glow)"
                   />
                   <circle
                     cx={item.screenX}
                     cy={item.screenY}
-                    r={6 * item.scale}
+                    r={7 * item.scale}
                     fill={item.color}
                     stroke={isSelected ? '#ffffff' : hex(item.color, 0.62)}
                     strokeWidth={isSelected ? 2 : 1}
                     filter="url(#hallogrid-flow-glow)"
                   />
+                  <circle
+                    cx={item.screenX}
+                    cy={item.screenY}
+                    r={(item.node.pressureLevel === 'high' ? 28 : item.node.pressureLevel === 'medium' ? 22 : 18) * item.scale}
+                    fill="transparent"
+                    stroke={hex(item.color, regionRingOpacity(item.node))}
+                    strokeDasharray={regionRingDash(item.node)}
+                    strokeWidth={isSelected ? 2.4 : item.node.pressureLevel === 'high' ? 2 : 1.3}
+                  />
                   {isSelected ? (
                     <circle
                       cx={item.screenX}
                       cy={item.screenY}
-                      r={20 * item.scale}
+                      r={30 * item.scale}
                       fill="transparent"
                       stroke={hex('#dbeafe', 0.45)}
-                      strokeDasharray="4 6"
+                      strokeDasharray="5 7"
                       strokeWidth="1.2"
                     />
                   ) : null}
@@ -663,14 +744,6 @@ function GlobePanel({
           {actionableNodes.map((item) => {
             const stateMeta = WORLD_STATE_META[item.node.state]
             const isSelected = item.node.region === selectedRegion
-            const beaconAnim =
-              reducedMotion
-                ? 'none'
-                : item.node.state === 'active'
-                  ? 'hallogrid-beacon-fast 1.4s ease-in-out infinite'
-                  : item.node.state === 'marginal'
-                    ? 'hallogrid-beacon-slow 2.8s ease-in-out infinite'
-                    : 'none'
 
             return (
               <button
@@ -690,6 +763,7 @@ function GlobePanel({
                   boxShadow: isSelected ? `0 0 18px ${hex('#dbeafe', 0.16)}` : 'none',
                   cursor: 'pointer',
                   zIndex: Math.round((item.depth + 1) * 100),
+                  opacity: selectedRegion && !isSelected ? 0.6 : 1,
                 }}
                 aria-label={`Focus ${item.node.label}`}
                 title={`${item.node.label}: ${stateMeta.label}`}
@@ -703,13 +777,13 @@ function GlobePanel({
                     borderRadius: '999px',
                     background: stateMeta.color,
                     boxShadow: `0 0 18px ${hex(stateMeta.color, 0.55)}`,
-                    animation: beaconAnim,
+                    animation: regionPulse(item.node, reducedMotion),
                   }}
                 />
               </button>
             )
           })}
-          {providerMesh.map(({ provider, x, y, color }) => (
+          {providerNodes.map(({ provider, x, y, color }) => (
             <div
               key={provider.id}
               style={{
@@ -720,11 +794,11 @@ function GlobePanel({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '5px 8px',
+                padding: selectedNode ? '5px 8px' : '0',
                 borderRadius: 999,
-                background: hex('#000000', 0.44),
-                border: `1px solid ${hex(color, 0.28)}`,
-                boxShadow: `0 0 16px ${hex(color, 0.08)}`,
+                background: selectedNode ? hex('#000000', 0.44) : 'transparent',
+                border: selectedNode ? `1px solid ${hex(color, 0.28)}` : 'none',
+                boxShadow: selectedNode ? `0 0 16px ${hex(color, 0.08)}` : 'none',
                 pointerEvents: 'none',
                 zIndex: 220,
               }}
@@ -743,11 +817,64 @@ function GlobePanel({
                       : 'hallogrid-beacon-fast 1.8s ease-in-out infinite',
                 }}
               />
-              <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t1, letterSpacing: '0.04em' }}>
-                {provider.label}
-              </span>
+              {selectedNode ? (
+                <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t1, letterSpacing: '0.04em' }}>
+                  {provider.label}
+                </span>
+              ) : null}
             </div>
           ))}
+          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '52%' }}>
+            {([
+              ['RUN', activeCount, A.run_now],
+              ['GUARDED', marginalCount, A.reroute],
+              ['BLOCKED', blockedCount, A.deny],
+            ] as const).map(([label, value, color]) => (
+              <div key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 999, background: hex('#000000', 0.48), border: `1px solid ${hex(color, 0.28)}`, color: P.t1, boxShadow: `0 0 16px ${hex(color, 0.08)}` }}>
+                <span style={{ width: 8, height: 8, borderRadius: '999px', background: color, boxShadow: `0 0 12px ${hex(color, 0.45)}`, animation: label === 'RUN' && !reducedMotion ? 'hallogrid-beacon-fast 1.8s ease-in-out infinite' : label === 'GUARDED' && !reducedMotion ? 'hallogrid-beacon-slow 2.8s ease-in-out infinite' : 'none' }} />
+                <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: label === 'BLOCKED' && value > 0 ? '#fecdd3' : P.t1 }}>{label}</span>
+                <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.06em', color }}>{value}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+            <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>
+              {selectedNode ? 'REGION LOCK' : 'TAP A REGION'}
+            </div>
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: P.t0 }}>
+                {selectedNode ? selectedNode.label : 'Execution zones'}
+              </span>
+              {selectedState ? (
+                <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedState.color }}>
+                  {selectedState.label.toUpperCase()}
+                </span>
+              ) : null}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: P.t1, lineHeight: 1.55 }}>
+              {selectedNode ? selectedDecisionRead : 'Click a beacon to lock the region, sync the feed, and surface routed pressure, trust, and proof posture.'}
+            </div>
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>CONFIDENCE</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: confidenceColor(selectedConfidence) }}>{selectedConfidenceLabel}</div>
+              </div>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>FRESHNESS</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedFreshness}</div>
+              </div>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>ROUTE</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedRoutePressureLabel}</div>
+              </div>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>LANES</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: blockedFocusFlowCount > 0 ? A.deny : '#dbeafe' }}>
+                  {selectedNode ? `${focusFlowCount} active / ${blockedFocusFlowCount} blocked` : `${flowPaths.length} visible`}
+                </div>
+              </div>
+            </div>
+          </div>
           <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
             <span>{selectedNode ? `FOCUS ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}</span>
             {selectedState ? <span style={{ color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
@@ -758,61 +885,79 @@ function GlobePanel({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-          <Block title="BEACON LEGEND">
-            {(['active', 'marginal', 'blocked'] as const).map((state) => {
-              const meta = WORLD_STATE_META[state]
-              return (
-                <div key={state} style={{ display: 'grid', gridTemplateColumns: '18px 1fr auto', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '999px', background: meta.color, boxShadow: `0 0 14px ${hex(meta.color, 0.48)}` }} />
-                  <div>
-                    <div style={{ fontSize: 11, color: P.t1 }}>{meta.label}</div>
-                    <div style={{ fontSize: 10, color: P.t3 }}>{meta.detail}</div>
-                  </div>
-                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: meta.color }}>{meta.rhythm}</div>
-                </div>
-              )
-            })}
-          </Block>
-          <Block title="REGION FOCUS">
-            <div style={{ fontSize: 14, fontWeight: 700, color: P.t0 }}>
-              {selectedNode ? selectedNode.label : 'No region focused'}
-            </div>
-            <div style={{ fontSize: 11, color: P.t2, marginTop: 6, lineHeight: 1.6 }}>
-              {selectedNode
-                ? `${selectedState?.label ?? 'Unknown'} state | ${selectedNode.reasonCode ?? 'No reason code'} | ${focusFlowCount} connected lanes`
-                : 'Select a beacon to inspect the region, then lock the routed decision in the feed below.'}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-              {selectedFrame ? (
-                <span style={{ padding: '5px 8px', borderRadius: 999, border: `1px solid ${hex(A[selectedFrame.action], 0.26)}`, background: hex(A[selectedFrame.action], 0.1), color: A[selectedFrame.action], fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
-                  {ACTION_META[selectedFrame.action].label.toUpperCase()}
-                </span>
-              ) : null}
-              {selectedNode ? (
-                <span style={{ padding: '5px 8px', borderRadius: 999, border: `1px solid ${hex(P.accent, 0.22)}`, background: hex(P.accent, 0.08), color: '#dbeafe', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
-                  {selectedNode.region}
-                </span>
-              ) : null}
-              {selectedFrame?.trust.degraded ? (
-                <span style={{ padding: '5px 8px', borderRadius: 999, border: `1px solid ${hex(A.reroute, 0.24)}`, background: hex(A.reroute, 0.1), color: '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
-                  GUARDED
-                </span>
-              ) : null}
-            </div>
-            {selectedFrame ? (
-              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-                <div style={{ padding: '8px 9px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
-                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>TRUST</div>
-                  <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedFrame.trust.tier.toUpperCase()}</div>
-                </div>
-                <div style={{ padding: '8px 9px', borderRadius: 10, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
-                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>FRESHNESS</div>
-                  <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedFrame.trust.freshnessLabel}</div>
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: expanded ? 'minmax(0, 1.3fr) minmax(0, 0.7fr)' : '1fr', gap: 10 }}>
+            <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {frontLineNodes.map((item) => {
+                  const meta = WORLD_STATE_META[item.node.state]
+                  const isSelected = item.node.region === selectedRegion
+                  return (
+                    <button
+                      key={item.node.region}
+                      type="button"
+                      onClick={() => onSelectRegion(item.node)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 7,
+                        padding: '7px 10px',
+                        borderRadius: 999,
+                        border: `1px solid ${hex(meta.color, isSelected ? 0.44 : 0.22)}`,
+                        background: isSelected ? hex(meta.color, 0.12) : hex('#ffffff', 0.02),
+                        color: P.t1,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--m)',
+                        fontSize: 10,
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      <span style={{ width: 7, height: 7, borderRadius: '999px', background: meta.color, boxShadow: `0 0 10px ${hex(meta.color, 0.45)}` }} />
+                      {item.node.label}
+                    </button>
+                  )
+                })}
               </div>
-            ) : null}
-          </Block>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+              {telemetryItems.map((item) => (
+                <div key={item.label} style={{ padding: '10px 11px', borderRadius: 14, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.08em', color: P.t3 }}>{item.label}</div>
+                  <div style={{ marginTop: 5, fontSize: 12, color: item.color, fontFamily: 'var(--m)' }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+            <div style={{ minWidth: 0, flex: '1 1 420px' }}>
+              <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>OPERATOR READ</div>
+              <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.6 }}>
+                {selectedNode
+                  ? `${selectedNode.label} is ${selectedState?.label.toLowerCase() ?? 'live'} with ${selectedConfidenceLabel.toLowerCase()} confidence, ${selectedFreshness.toLowerCase()}, and ${selectedRoutePressureLabel.toLowerCase()}.`
+                  : 'Run uses green pulse, guarded uses amber pulse, and blocked holds red. Tap a region to lock the route and open the governed record.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLegend((current) => !current)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 999,
+                border: `1px solid ${P.borderLit}`,
+                background: showLegend ? hex(P.accent, 0.1) : hex('#ffffff', 0.03),
+                color: showLegend ? '#dbeafe' : P.t1,
+                cursor: 'pointer',
+                fontFamily: 'var(--m)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+              }}
+            >
+              <span>{showLegend ? 'HIDE LEGEND' : 'SHOW LEGEND'}</span>
+            </button>
+          </div>
           <Block title="DECISION READ">
             {selectedFrame ? (
               <>
@@ -878,6 +1023,378 @@ function GlobePanel({
                 })}
               </div>
             </Block>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HallOGridTheater({
+  nodes,
+  flows,
+  providers,
+  selectedRegion,
+  selectedFrame,
+  projectionLagSec,
+  streamHealthy,
+  expanded,
+  onSelectRegion,
+}: ComponentProps<typeof GlobePanel>) {
+  const [rotation, setRotation] = useState(0)
+  const [reducedMotion, setReducedMotion] = useState(false)
+  const [showLegend, setShowLegend] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReducedMotion(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || reducedMotion) return
+    const interval = window.setInterval(() => {
+      setRotation((current) => (current + (selectedRegion ? 0.12 : expanded ? 0.16 : 0.1)) % 360)
+    }, 80)
+    return () => window.clearInterval(interval)
+  }, [expanded, reducedMotion, selectedRegion])
+
+  const globeSize = expanded ? 660 : 520
+  const radius = expanded ? 244 : 192
+  const center = globeSize / 2
+  const glowRadius = radius + (expanded ? 8 : 6)
+
+  const projected = useMemo<ProjectedNode[]>(() => {
+    return nodes
+      .map((node) => {
+        const lon = (node.x / 100) * 360 - 180
+        const lat = 90 - (node.y / 100) * 180
+        const lonRad = ((lon + rotation) * Math.PI) / 180
+        const latRad = (lat * Math.PI) / 180
+        const x = Math.cos(latRad) * Math.sin(lonRad)
+        const y = Math.sin(latRad)
+        const z = Math.cos(latRad) * Math.cos(lonRad)
+
+        return {
+          node,
+          screenX: center + radius * x,
+          screenY: center - radius * y,
+          depth: z,
+          opacity: Math.max(0.16, 0.32 + ((z + 1) / 2) * 0.88),
+          scale: 0.58 + ((z + 1) / 2) * 0.72,
+          color: worldStateColor(node),
+        }
+      })
+      .sort((a, b) => a.depth - b.depth)
+  }, [center, nodes, radius, rotation])
+
+  const visibleByRegion = useMemo(() => new Map(projected.map((item) => [item.node.region, item])), [projected])
+
+  const flowPaths = useMemo(() => {
+    return flows
+      .map((flow) => {
+        const from = visibleByRegion.get(flow.fromRegion)
+        const to = visibleByRegion.get(flow.toRegion)
+        if (!from || !to) return null
+        if (from.depth < 0.02 || to.depth < 0.02) return null
+
+        const connectedToSelection =
+          selectedRegion != null && (flow.fromRegion === selectedRegion || flow.toRegion === selectedRegion)
+
+        const controlX = (from.screenX + to.screenX) / 2
+        const controlY =
+          Math.min(from.screenY, to.screenY) -
+          24 -
+          Math.abs(from.screenX - to.screenX) * 0.08 -
+          Math.abs(from.screenY - to.screenY) * 0.06
+
+        return {
+          id: flow.id,
+          d: `M ${from.screenX} ${from.screenY} Q ${controlX} ${controlY} ${to.screenX} ${to.screenY}`,
+          color: flow.mode === 'blocked' ? A.deny : connectedToSelection ? '#dbeafe' : hex(P.accent, 0.72),
+          opacity:
+            Math.min(from.opacity, to.opacity) *
+            (flow.mode === 'blocked' ? 0.82 : connectedToSelection ? 0.95 : 0.34),
+          width: connectedToSelection ? 2.35 : 1.1,
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item != null)
+  }, [flows, selectedRegion, visibleByRegion])
+
+  const activeCount = nodes.filter((node) => node.state === 'active').length
+  const guardedCount = nodes.filter((node) => node.state === 'marginal').length
+  const blockedCount = nodes.filter((node) => node.state === 'blocked').length
+  const selectedNode = selectedRegion ? nodes.find((node) => node.region === selectedRegion) ?? null : null
+  const selectedState = selectedNode ? WORLD_STATE_META[selectedNode.state] : null
+  const connectedFlows = selectedRegion
+    ? flows.filter((flow) => flow.fromRegion === selectedRegion || flow.toRegion === selectedRegion)
+    : []
+  const blockedFocusFlowCount = connectedFlows.filter((flow) => flow.mode === 'blocked').length
+  const actionableNodes = projected.filter((item) => item.depth >= 0.02).sort((a, b) => b.depth - a.depth)
+  const frontLineNodes = actionableNodes.slice(0, 5)
+  const providerMesh = providers.slice(0, 6).map((provider, index, list) => {
+    const angle = (-110 + (220 / Math.max(list.length - 1, 1)) * index) * (Math.PI / 180)
+    const orbitX = center + Math.cos(angle) * (radius + 54)
+    const orbitY = center + Math.sin(angle) * (radius * 0.76 + 44)
+    return { provider, x: orbitX, y: orbitY, color: providerStatusColor(provider.status) }
+  })
+  const healthyProviders = providers.filter((provider) => provider.status === 'healthy').length
+  const degradedProviders = providers.filter((provider) => provider.status === 'degraded').length
+  const offlineProviders = Math.max(0, providers.length - healthyProviders - degradedProviders)
+  const providerNodes = selectedNode ? providerMesh : providerMesh.slice(0, Math.min(providerMesh.length, 2))
+  const selectedDecisionRead = compactDecisionRead(selectedFrame)
+  const selectedFreshness = selectedFrame ? shortFreshness(selectedFrame.trust.freshnessLabel) : 'Awaiting focus'
+  const selectedConfidence = selectedFrame?.metrics.signalConfidence ?? selectedNode?.signalConfidence ?? null
+  const selectedConfidenceLabel =
+    selectedNode?.confidenceTier != null
+      ? selectedNode.confidenceTier.toUpperCase()
+      : selectedConfidence != null
+        ? selectedConfidence >= 85
+          ? 'HIGH'
+          : selectedConfidence >= 68
+            ? 'MEDIUM'
+            : 'LOW'
+        : 'UNKNOWN'
+  const selectedPressure = selectedNode?.pressureLevel ?? null
+  const selectedRoutePressureLabel =
+    selectedPressure != null ? `${selectedPressure.toUpperCase()} PRESSURE` : 'NO PRESSURE READ'
+  const supportTelemetry = [
+    { label: 'Routes', value: String(flowPaths.length), color: '#dbeafe' },
+    { label: 'Blocked', value: String(blockedFocusFlowCount), color: blockedFocusFlowCount > 0 ? A.deny : P.t2 },
+    { label: 'Healthy', value: String(healthyProviders), color: healthyProviders > 0 ? A.run_now : P.t2 },
+    { label: 'Degraded', value: String(degradedProviders), color: degradedProviders > 0 ? A.reroute : P.t2 },
+    { label: 'Offline', value: String(offlineProviders), color: offlineProviders > 0 ? A.deny : P.t2 },
+    {
+      label: 'Lag',
+      value: projectionLagSec == null ? 'N/A' : `${projectionLagSec}s`,
+      color: projectionLagSec != null && projectionLagSec > 60 ? A.reroute : P.t1,
+    },
+  ]
+
+  return (
+    <div
+      style={{
+        padding: '18px 18px 16px',
+        borderRadius: 24,
+        background: `linear-gradient(180deg, ${hex('#0a1220', 0.22)} 0%, ${hex('#07101a', 0.12)} 18%, ${hex('#020309', 0.94)} 66%, ${hex('#000000', 0.98)} 100%)`,
+        border: `1px solid ${hex(P.accent, 0.12)}`,
+        boxShadow: `0 24px 60px ${hex('#000000', 0.36)}`,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.12em', color: '#dbeafe' }}>
+            <Globe2 size={13} />
+            LIVE GRID THEATER
+          </div>
+          <div style={{ marginTop: 6, fontSize: 13, color: P.t1 }}>
+            Regions are the execution surface. Pulse, ring, and lane weight show where to run, where to hold, and how trustworthy the posture is.
+          </div>
+        </div>
+        <div style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 999, border: `1px solid ${streamHealthy ? hex(A.run_now, 0.2) : hex(A.reroute, 0.24)}`, background: streamHealthy ? hex(A.run_now, 0.08) : hex(A.reroute, 0.1), color: streamHealthy ? '#d1fae5' : '#fde68a', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+          {streamHealthy ? 'STREAM HEALTHY' : 'STREAM GUARDED'}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ position: 'relative', minHeight: expanded ? 470 : 370, borderRadius: 22, overflow: 'hidden', border: `1px solid ${P.borderLit}`, background: `radial-gradient(circle at 50% 22%, ${hex(P.accent, 0.04)} 0%, ${hex('#04060b', 0.1)} 28%, ${hex('#020309', 0.88)} 54%, ${hex('#000000', 0.98)} 100%)` }}>
+          <div style={{ position: 'absolute', inset: expanded ? 22 : 18, borderRadius: '50%', background: `radial-gradient(circle at 50% 48%, ${hex('#ffffff', 0.02)} 0%, ${hex('#7db7ff', 0.02)} 16%, ${hex('#0c1624', 0.08)} 38%, ${hex('#030507', 0.82)} 68%, ${hex('#000000', 0.98)} 100%)`, boxShadow: `inset 0 0 44px ${hex('#61a3ff', 0.05)}, 0 0 18px ${hex('#8ec5ff', 0.06)}` }} />
+          <svg viewBox={`0 0 ${globeSize} ${globeSize}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+            <defs>
+              <filter id="hallogrid-flow-glow-next">
+                <feGaussianBlur stdDeviation="2.2" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <radialGradient id="hallogrid-globe-core-next" cx="50%" cy="50%" r="58%">
+                <stop offset="0%" stopColor="rgba(18,26,42,0.015)" />
+                <stop offset="36%" stopColor="rgba(8,12,20,0.04)" />
+                <stop offset="68%" stopColor="rgba(2,4,10,0.38)" />
+                <stop offset="100%" stopColor="rgba(0,1,4,0.94)" />
+              </radialGradient>
+              <radialGradient id="hallogrid-atmosphere-next" cx="50%" cy="50%" r="60%">
+                <stop offset="0%" stopColor="rgba(120,170,255,0.006)" />
+                <stop offset="55%" stopColor="rgba(80,120,220,0.022)" />
+                <stop offset="100%" stopColor="rgba(30,50,120,0.055)" />
+              </radialGradient>
+            </defs>
+            <circle cx={center} cy={center} r={glowRadius} fill="url(#hallogrid-atmosphere-next)" />
+            <circle cx={center} cy={center} r={radius} fill="url(#hallogrid-globe-core-next)" />
+            <circle cx={center} cy={center} r={radius} fill="transparent" stroke={hex('#dbeafe', 0.14)} strokeWidth="1" />
+            {[0.14, 0.24, 0.34, 0.44, 0.54, 0.64, 0.74, 0.84].map((ratio, index) => (
+              <ellipse key={`lat-next-${ratio}`} cx={center} cy={center} rx={radius} ry={radius * ratio} fill="transparent" stroke={hex('#8fb8ff', Math.max(0.06, 0.18 - index * 0.014))} strokeWidth="0.75" />
+            ))}
+            {[0.12, 0.24, 0.36, 0.48, 0.6, 0.72, 0.84].map((ratio, index) => (
+              <ellipse key={`lon-next-${ratio}`} cx={center} cy={center} rx={radius * ratio} ry={radius} fill="transparent" stroke={hex('#8fb8ff', Math.max(0.05, 0.16 - index * 0.015))} strokeWidth="0.7" transform={`rotate(${rotation * (0.12 + index * 0.03)} ${center} ${center})`} />
+            ))}
+            {flowPaths.map((flow) => (
+              <path key={flow.id} d={flow.d} fill="none" stroke={flow.color} strokeOpacity={flow.opacity} strokeWidth={flow.width} filter="url(#hallogrid-flow-glow-next)" />
+            ))}
+            {actionableNodes.map((item) => {
+              const isSelected = item.node.region === selectedRegion
+              return (
+                <g key={item.node.region} opacity={Math.min(1, item.opacity + (isSelected ? 0.2 : 0))}>
+                  <circle cx={item.screenX} cy={item.screenY} r={(item.node.pressureLevel === 'high' ? 17 : item.node.pressureLevel === 'medium' ? 14 : 11) * item.scale} fill={hex(item.color, isSelected ? 0.24 : pressureGlow(item.node))} stroke="none" filter="url(#hallogrid-flow-glow-next)" />
+                  <circle cx={item.screenX} cy={item.screenY} r={7 * item.scale} fill={item.color} stroke={isSelected ? '#ffffff' : hex(item.color, 0.62)} strokeWidth={isSelected ? 2 : 1} filter="url(#hallogrid-flow-glow-next)" />
+                  <circle cx={item.screenX} cy={item.screenY} r={(item.node.pressureLevel === 'high' ? 28 : item.node.pressureLevel === 'medium' ? 22 : 18) * item.scale} fill="transparent" stroke={hex(item.color, regionRingOpacity(item.node))} strokeDasharray={regionRingDash(item.node)} strokeWidth={isSelected ? 2.4 : item.node.pressureLevel === 'high' ? 2 : 1.3} />
+                  {isSelected ? <circle cx={item.screenX} cy={item.screenY} r={30 * item.scale} fill="transparent" stroke={hex('#dbeafe', 0.45)} strokeDasharray="5 7" strokeWidth="1.2" /> : null}
+                </g>
+              )
+            })}
+          </svg>
+          {actionableNodes.map((item) => {
+            const stateMeta = WORLD_STATE_META[item.node.state]
+            const isSelected = item.node.region === selectedRegion
+            return (
+              <button
+                key={item.node.region}
+                type="button"
+                onClick={() => onSelectRegion(item.node)}
+                style={{
+                  position: 'absolute',
+                  left: item.screenX,
+                  top: item.screenY,
+                  transform: 'translate(-50%, -50%)',
+                  width: 34,
+                  height: 34,
+                  borderRadius: '999px',
+                  border: isSelected ? `1px solid ${hex('#dbeafe', 0.62)}` : `1px solid ${hex(stateMeta.color, 0.24)}`,
+                  background: isSelected ? hex('#dbeafe', 0.08) : 'transparent',
+                  boxShadow: isSelected ? `0 0 18px ${hex('#dbeafe', 0.16)}` : 'none',
+                  cursor: 'pointer',
+                  zIndex: Math.round((item.depth + 1) * 100),
+                  opacity: selectedRegion && !isSelected ? 0.55 : 1,
+                }}
+                aria-label={`Focus ${item.node.label}`}
+                title={`${item.node.label}: ${stateMeta.label}`}
+              >
+                <span style={{ display: 'block', width: 10, height: 10, margin: '0 auto', borderRadius: '999px', background: stateMeta.color, boxShadow: `0 0 18px ${hex(stateMeta.color, 0.55)}`, animation: regionPulse(item.node, reducedMotion) }} />
+              </button>
+            )
+          })}
+          {providerNodes.map(({ provider, x, y, color }) => (
+            <div key={provider.id} style={{ position: 'absolute', left: x, top: y, transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: 6, padding: selectedNode ? '5px 8px' : '0', borderRadius: 999, background: selectedNode ? hex('#000000', 0.44) : 'transparent', border: selectedNode ? `1px solid ${hex(color, 0.28)}` : 'none', boxShadow: selectedNode ? `0 0 16px ${hex(color, 0.08)}` : 'none', pointerEvents: 'none', zIndex: 220 }} title={`${provider.label}: ${provider.status}`}>
+              <span style={{ width: 7, height: 7, borderRadius: '999px', background: color, boxShadow: `0 0 12px ${hex(color, 0.48)}`, animation: reducedMotion || provider.status !== 'healthy' ? 'none' : 'hallogrid-beacon-fast 1.8s ease-in-out infinite' }} />
+              {selectedNode ? <span style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t1, letterSpacing: '0.04em' }}>{provider.label}</span> : null}
+            </div>
+          ))}
+          <div style={{ position: 'absolute', left: 16, top: 16, display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '52%' }}>
+            {([
+              ['RUN', activeCount, A.run_now],
+              ['GUARDED', guardedCount, A.reroute],
+              ['BLOCKED', blockedCount, A.deny],
+            ] as const).map(([label, value, color]) => (
+              <div key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 999, background: hex('#000000', 0.48), border: `1px solid ${hex(color, 0.28)}`, color: P.t1, boxShadow: `0 0 16px ${hex(color, 0.08)}` }}>
+                <span style={{ width: 8, height: 8, borderRadius: '999px', background: color, boxShadow: `0 0 12px ${hex(color, 0.45)}`, animation: label === 'RUN' && !reducedMotion ? 'hallogrid-beacon-fast 1.8s ease-in-out infinite' : label === 'GUARDED' && !reducedMotion ? 'hallogrid-beacon-slow 2.8s ease-in-out infinite' : 'none' }} />
+                <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: label === 'BLOCKED' && value > 0 ? '#fecdd3' : P.t1 }}>{label}</span>
+                <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.06em', color }}>{value}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ position: 'absolute', top: 16, right: 16, width: expanded ? 270 : 238, maxWidth: '46%', padding: '12px 13px', borderRadius: 18, background: hex('#010308', 0.76), border: `1px solid ${selectedNode ? hex(worldStateColor(selectedNode), 0.26) : P.borderLit}`, boxShadow: selectedNode ? `0 0 24px ${hex(worldStateColor(selectedNode), 0.1)}` : 'none', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+            <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>{selectedNode ? 'REGION LOCK' : 'TAP A REGION'}</div>
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: P.t0 }}>{selectedNode ? selectedNode.label : 'Execution zones'}</span>
+              {selectedState ? <span style={{ fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: P.t1, lineHeight: 1.55 }}>
+              {selectedNode ? selectedDecisionRead : 'Click a beacon to lock the region, sync the feed, and surface routed pressure, trust, and proof posture.'}
+            </div>
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>CONFIDENCE</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: confidenceColor(selectedConfidence) }}>{selectedConfidenceLabel}</div>
+              </div>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>FRESHNESS</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedFreshness}</div>
+              </div>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>ROUTE</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: P.t1 }}>{selectedRoutePressureLabel}</div>
+              </div>
+              <div style={{ padding: '8px 9px', borderRadius: 12, background: hex('#ffffff', 0.035), border: `1px solid ${P.border}` }}>
+                <div style={{ fontFamily: 'var(--m)', fontSize: 9, color: P.t3 }}>LANES</div>
+                <div style={{ marginTop: 4, fontSize: 11, color: blockedFocusFlowCount > 0 ? A.deny : '#dbeafe' }}>{selectedNode ? `${connectedFlows.length} active / ${blockedFocusFlowCount} blocked` : `${flowPaths.length} visible`}</div>
+              </div>
+            </div>
+          </div>
+          <div style={{ position: 'absolute', left: 16, bottom: 14, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: selectedNode ? worldStateColor(selectedNode) : '#dbeafe' }}>
+            <span>{selectedNode ? `FOCUS ${selectedNode.label.toUpperCase()}` : 'WORLD STATE LIVE'}</span>
+            {selectedState ? <span style={{ color: selectedState.color }}>{selectedState.label.toUpperCase()}</span> : null}
+          </div>
+          <div style={{ position: 'absolute', right: 16, bottom: 14, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 999, background: hex('#000000', 0.42), border: `1px solid ${P.borderLit}`, fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em', color: '#dbeafe' }}>
+            <span>{reducedMotion ? 'LOW MOTION' : 'LIVE ROTATION'}</span>
+            <span style={{ color: P.t2 }}>{Math.round(rotation)}deg</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: expanded ? 'minmax(0, 1.3fr) minmax(0, 0.7fr)' : '1fr', gap: 10 }}>
+            <div style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {frontLineNodes.map((item) => {
+                  const meta = WORLD_STATE_META[item.node.state]
+                  const isSelected = item.node.region === selectedRegion
+                  return (
+                    <button
+                      key={item.node.region}
+                      type="button"
+                      onClick={() => onSelectRegion(item.node)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 10px', borderRadius: 999, border: `1px solid ${hex(meta.color, isSelected ? 0.44 : 0.22)}`, background: isSelected ? hex(meta.color, 0.12) : hex('#ffffff', 0.02), color: P.t1, cursor: 'pointer', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.06em' }}
+                    >
+                      <span style={{ width: 7, height: 7, borderRadius: '999px', background: meta.color, boxShadow: `0 0 10px ${hex(meta.color, 0.45)}` }} />
+                      {item.node.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+              {supportTelemetry.map((item) => (
+                <div key={item.label} style={{ padding: '10px 11px', borderRadius: 14, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+                  <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.08em', color: P.t3 }}>{item.label}</div>
+                  <div style={{ marginTop: 5, fontSize: 12, color: item.color, fontFamily: 'var(--m)' }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.02), border: `1px solid ${P.border}` }}>
+            <div style={{ minWidth: 0, flex: '1 1 420px' }}>
+              <div style={{ fontFamily: 'var(--m)', fontSize: 9, letterSpacing: '0.12em', color: P.t3 }}>OPERATOR READ</div>
+              <div style={{ marginTop: 6, fontSize: 12, color: P.t1, lineHeight: 1.6 }}>
+                {selectedNode
+                  ? `${selectedNode.label} is ${selectedState?.label.toLowerCase() ?? 'live'} with ${selectedConfidenceLabel.toLowerCase()} confidence, ${selectedFreshness.toLowerCase()}, and ${selectedRoutePressureLabel.toLowerCase()}.`
+                  : 'Run uses green pulse, guarded uses amber pulse, and blocked holds red. Tap a region to lock the route and open the governed record.'}
+              </div>
+            </div>
+            <button type="button" onClick={() => setShowLegend((current) => !current)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 999, border: `1px solid ${P.borderLit}`, background: showLegend ? hex(P.accent, 0.1) : hex('#ffffff', 0.03), color: showLegend ? '#dbeafe' : P.t1, cursor: 'pointer', fontFamily: 'var(--m)', fontSize: 10, letterSpacing: '0.08em' }}>
+              <span>{showLegend ? 'HIDE LEGEND' : 'SHOW LEGEND'}</span>
+            </button>
+          </div>
+
+          {showLegend ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+              {(['active', 'marginal', 'blocked'] as const).map((state) => {
+                const meta = WORLD_STATE_META[state]
+                return (
+                  <div key={state} style={{ padding: '12px 14px', borderRadius: 16, background: hex('#ffffff', 0.03), border: `1px solid ${P.border}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '999px', background: meta.color, boxShadow: `0 0 14px ${hex(meta.color, 0.48)}` }} />
+                      <div style={{ fontSize: 11, color: P.t1 }}>{meta.label}</div>
+                      <div style={{ marginLeft: 'auto', fontFamily: 'var(--m)', fontSize: 9, color: meta.color }}>{meta.rhythm}</div>
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 10, color: P.t2, lineHeight: 1.6 }}>{meta.detail}</div>
+                  </div>
+                )
+              })}
+            </div>
           ) : null}
         </div>
       </div>
@@ -1121,14 +1638,14 @@ export function CommandCenterShell() {
 
   return (
     <div style={{ background: P.bg0, color: P.t1, minHeight: '100vh', fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif", position: 'relative', overflow: 'hidden' }}>
-      <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');:root{--m:'JetBrains Mono',monospace;}@keyframes hallogrid-breathe{0%,100%{transform:translate(0,0) scale(1);opacity:.5;}50%{transform:translate(-2%,1.5%) scale(1.04);opacity:.75;}}@keyframes hallogrid-pulse{0%,100%{opacity:.35;transform:scale(1);}50%{opacity:0;transform:scale(2.5);}}@keyframes hallogrid-pulse-soft{0%,100%{opacity:1;}50%{opacity:.65;}}@keyframes hallogrid-beacon-fast{0%,100%{opacity:.15;transform:scale(.85);}50%{opacity:1;transform:scale(1.2);}}@keyframes hallogrid-beacon-slow{0%,100%{opacity:.2;transform:scale(.9);}50%{opacity:.75;transform:scale(1.08);}}@keyframes hallogrid-inspector-in{from{opacity:0;transform:translateX(28px);}to{opacity:1;transform:translateX(0);}}@keyframes hallogrid-sheet-up{from{transform:translateY(100%);}to{transform:translateY(0);}}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${P.borderLit};border-radius:2px;}button{font-family:inherit;}button:focus-visible{outline:2px solid ${P.accent};outline-offset:2px;}`}</style>
+      <style jsx global>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');:root{--m:'JetBrains Mono',monospace;}@keyframes hallogrid-breathe{0%,100%{transform:translate(0,0) scale(1);opacity:.5;}50%{transform:translate(-2%,1.5%) scale(1.04);opacity:.75;}}@keyframes hallogrid-pulse{0%,100%{opacity:.35;transform:scale(1);}50%{opacity:0;transform:scale(2.5);}}@keyframes hallogrid-pulse-soft{0%,100%{opacity:1;}50%{opacity:.65;}}@keyframes hallogrid-beacon-fast{0%,100%{opacity:.15;transform:scale(.85);}50%{opacity:1;transform:scale(1.2);}}@keyframes hallogrid-beacon-slow{0%,100%{opacity:.2;transform:scale(.9);}50%{opacity:.75;transform:scale(1.08);}}@keyframes hallogrid-beacon-irregular{0%,20%,60%,100%{opacity:.18;transform:scale(.88);}10%,32%,74%{opacity:.95;transform:scale(1.12);}45%{opacity:.38;transform:scale(.96);}}@keyframes hallogrid-inspector-in{from{opacity:0;transform:translateX(28px);}to{opacity:1;transform:translateX(0);}}@keyframes hallogrid-sheet-up{from{transform:translateY(100%);}to{transform:translateY(0);}}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:${P.borderLit};border-radius:2px;}button{font-family:inherit;}button:focus-visible{outline:2px solid ${P.accent};outline-offset:2px;}`}</style>
       <BackgroundGrid active={Boolean(sel)} color={activeColor} />
       <HeaderBar title={snapshot.title} subtitle={snapshot.subtitle} streamHealthy={snapshot.transport.streamHealthy} generatedAt={snapshot.generatedAt} />
       <TelemetryStrip frames={snapshot.frames} />
 
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', paddingTop: SCENE_TOP, paddingBottom: 18, paddingLeft: mobile ? 12 : 18, paddingRight: mobile ? 12 : 18 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
-          <GlobePanel
+          <HallOGridTheater
             nodes={snapshot.world.nodes}
             flows={snapshot.world.flows}
             providers={snapshot.health.providers}
